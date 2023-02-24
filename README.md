@@ -17,5 +17,5 @@ cd /path/to/your/project/public
 ```
 
 ```bash
-rm -rf .git .gitattributes .gitignore .gitmodules`
+rm -rf .git .gitattributes .gitignore .gitmodules
 ```
