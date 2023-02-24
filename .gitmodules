@@ -1,0 +1,3 @@
+[submodule "site-eprc"]
+	path = site-eprc
+	url = git@github.com:eprcstudio/site-eprc.git

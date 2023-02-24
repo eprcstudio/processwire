@@ -59,7 +59,7 @@ class Installer {
 	 * Default profile name
 	 * 
 	 */
-	const DEFAULT_PROFILE = 'site-blank';
+	const DEFAULT_PROFILE = 'site-eprc';
 
 	/**
 	 * File permissions, determined in the dbConfig function
