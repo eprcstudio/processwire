@@ -10,6 +10,12 @@ Assuming you are part of the team:
 
 ```bash
 git clone --recurse-submodules https://github.com/eprcstudio/processwire /path/to/your/project/public
+```
+
+```bash
 cd /path/to/your/project/public
-rm -rf .git .gitattributes .gitignore .gitmodules
+```
+
+```bash
+rm -rf .git .gitattributes .gitignore .gitmodules`
 ```
