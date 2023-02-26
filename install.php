@@ -222,7 +222,11 @@ class Installer {
 		
 		foreach($profiles as $name => $profile) {
 			$title = empty($profile['title']) ? ucfirst($profile['name']) : $profile['title'];
-			$options .= "<option value='$name'>$title</option>"; 
+			$options .= "<option value='$name'";
+			if($name === SELF::DEFAULT_PROFILE) {
+				$options .= " selected";
+			}
+			$options .= ">$title</option>"; 
 			$out .= "<div class='profile-preview' id='$name' style='display: none;'>";
 			if(!empty($profile['summary'])) $out .= "<p>$profile[summary]</p>";
 				else $out .= "<p class='detail'>No summary.</p>";
@@ -245,7 +249,7 @@ class Installer {
 			A site installation profile is a ready-to-use and modify site for ProcessWire.
 			</p>
 			<p>
-			If you want something other than the included “blank” profile, please 
+			If you want something other than the included “EPRC” profile (don’t), please 
 			<a target='_blank' href='https://processwire.com/download/site-profiles/'>download another site profile</a>, 
 			unzip and place its files in <code>$url</code> (replacing <code>name</code> with the profile name) 
 			and click the “Refresh” button to make it available here.
@@ -353,7 +357,7 @@ class Installer {
 
 		if(function_exists('apache_get_modules')) {
 			if(in_array('mod_rewrite', apache_get_modules())) $this->ok("Found Apache module: mod_rewrite"); 
-				else $this->err("Apache 'mod_rewrite' module does not appear to be installed and is required by ProcessWire."); 
+			else $this->err("Apache 'mod_rewrite' module does not appear to be installed and is required by ProcessWire."); 
 		} else {
 			// apache_get_modules doesn't work on a cgi installation.
 			// check for environment var set in htaccess file, as submitted by jmarjie. 
@@ -526,19 +530,36 @@ class Installer {
 			if(!$timezone || !in_array($timezone, $timezones)) $timezone = 'America/New_York';
 		}
 
-		$defaults['timezone'] = $timezone; 
+		$defaults['timezone'] = $timezone;
 		$defaults['httpHosts'] = strtolower(filter_var($_SERVER['HTTP_HOST'], FILTER_SANITIZE_URL));
 
 		if(strpos($defaults['httpHosts'], 'www.') === 0) {
-			$defaults['httpHosts'] .= "\n" . substr($defaults['httpHosts'], 4); 
+			$defaults['httpHosts'] = "@" . substr($defaults['httpHosts'], 4) . "\n$defaults[httpHosts]"; 
 		} else if(substr_count($defaults['httpHosts'], '.') == 1) {
-			$defaults['httpHosts'] .= "\n" . "www.$defaults[httpHosts]";
+			$defaults['httpHosts'] = "@$defaults[httpHosts]\nwww.$defaults[httpHosts]";
 		}
 		if($_SERVER['SERVER_NAME'] && $_SERVER['SERVER_NAME'] != $_SERVER['HTTP_HOST']) {
+			if(strpos($defaults['httpHosts'], "@") !== 1) {
+				$defaults['httpHosts'] = "@$defaults[httpHosts]";
+			}
 			$defaults['httpHosts'] .= "\n" . $_SERVER['SERVER_NAME']; 
 		}
 		
-		if(isset($values['httpHosts']) && is_array($values['httpHosts'])) $values['httpHosts'] = implode("\n", $values['httpHosts']); 
+		if(isset($values['httpHosts']) && is_array($values['httpHosts'])) {
+			$hosts = "";
+			foreach($values['httpHosts'] as $host) {
+				if(isset($values['mainHost']) && $host === $values['mainHost']) {
+					$hosts .= "@$host\n";
+				} elseif(isset($values['devHost']) && $host === $values['devHost']) {
+					$hosts .= "+$host\n";
+				} else {
+					$hosts .= "$host\n";
+				}
+			}
+			$values['httpHosts'] = $hosts;
+		}
+
+		$defaults['env'] = 'local';
 
 		$values = array_merge($defaults, $values); 
 
@@ -576,39 +597,55 @@ class Installer {
 		
 		$this->sectionStop();
 
-		$this->sectionStart('fa-server HTTP Host Names');
+		$this->sectionStart('fa-server Environment / HTTP Host Names');
 		$this->p(
-			"What host names will this installation run on now and in the future? Please enter one host per line. " . 
-			"You can also modify this setting later by editing the <code>\$config->httpHosts</code> setting in the <u>/site/config.php</u> file."
+			"Please select in which environment you’re installing ProcessWire. The installer will generate the credentials files and edit the config file accordingly."
+		); 
+		$this->select(
+			"environment",
+			"",
+			$values["env"], [
+				"local" => "Local",
+				"prod" => "Production"
+			],
+		);
+		$this->clear();
+		$this->p(
+			"What host names will this installation run on now and in the future? Please enter one host per line.",
+			array('style' => 'margin-top:0')
 		);
 		$rows = substr_count($values['httpHosts'], "\n") + 2; 
 		$this->textarea('httpHosts', '', $values['httpHosts'], $rows); 
+		$this->p(
+			"If you selected the “Production” environment, you can use “@” to specify your main host and “+” to specify your preview / debug one (at EPRC we’re using <u>dev.domain.tld</u>). Only a superuser will be able to access the admin panel there, while other logged-in users will be able to access the front-end.",
+			array('class' => 'detail', 'style' => 'margin-top:0')
+		);
 		$this->sectionStop();
 		
-		$this->sectionStart('fa-bug Debug mode?');
-		$this->p(
-			"When debug mode is enabled, errors and exceptions are visible in ProcessWire’s output. This is helpful when developing a website or testing ProcessWire. " . 
-			"When debug mode is NOT enabled, fatal errors/exceptions halt the request with an ambiguous http 500 error, and non-fatal errors are not shown. " . 
-			"Regardless of debug mode, fatal errors are always logged and always visible to superusers. " . 
-			"Debug mode should not be enabled for live or production sites, but at this stage (installation) it is worthwhile to have it enabled. " 
-		);
-		$noChecked = empty($values['debugMode']) ? "checked='checked'" : "";
-		$yesChecked = empty($noChecked) ? "checked='checked'" : "";
-		$this->p(
-			"<label>" . 
-				"<input type='radio' class='uk-radio' name='debugMode' $yesChecked value='1'> <strong>Enabled</strong> " . 
-				"<span class='uk-text-small uk-text-muted'>(recommended while sites are in development or while testing ProcessWire)</span>" . 
-			"</label><br />" .
-			"<label>" . 
-				"<input type='radio' class='uk-radio' name='debugMode' $noChecked value='0'> <strong>Disabled</strong> " . 
-				"<span class='uk-text-small uk-text-muted'>(recommended once a site goes live or becomes publicly accessible)</span>" . 
-			"</label> " 
-		);
-		$this->p(
-			"You can also enable or disable debug mode at any time by editing the <u>/site/config.php</u> file and setting " .
-			"<code>\$config->debug = true;</code> or <code>\$config->debug = false;</code>"
-		);
-		$this->sectionStop();
+		// $this->sectionStart('fa-bug Debug mode?');
+		// $this->p(
+		// 	"When debug mode is enabled, errors and exceptions are visible in ProcessWire’s output. This is helpful when developing a website or testing ProcessWire. " . 
+		// 	"When debug mode is NOT enabled, fatal errors/exceptions halt the request with an ambiguous http 500 error, and non-fatal errors are not shown. " . 
+		// 	"Regardless of debug mode, fatal errors are always logged and always visible to superusers. " . 
+		// 	"Debug mode should not be enabled for live or production sites, but at this stage (installation) it is worthwhile to have it enabled. " 
+		// );
+		// $noChecked = empty($values['debugMode']) ? "checked='checked'" : "";
+		// $yesChecked = empty($noChecked) ? "checked='checked'" : "";
+		// $this->p(
+		// 	"<label>" . 
+		// 		"<input type='radio' class='uk-radio' name='debugMode' $yesChecked value='1'> <strong>Enabled</strong> " . 
+		// 		"<span class='uk-text-small uk-text-muted'>(recommended while sites are in development or while testing ProcessWire)</span>" . 
+		// 	"</label><br />" .
+		// 	"<label>" . 
+		// 		"<input type='radio' class='uk-radio' name='debugMode' $noChecked value='0'> <strong>Disabled</strong> " . 
+		// 		"<span class='uk-text-small uk-text-muted'>(recommended once a site goes live or becomes publicly accessible)</span>" . 
+		// 	"</label> " 
+		// );
+		// $this->p(
+		// 	"You can also enable or disable debug mode at any time by editing the <u>/site/config.php</u> file and setting " .
+		// 	"<code>\$config->debug = true;</code> or <code>\$config->debug = false;</code>"
+		// );
+		// $this->sectionStop();
 		
 		$this->btnContinue(array('value' => 4)); 
 		$this->p("Note: After you click the button above, be patient &hellip; it may take a minute.", "detail");
@@ -649,21 +686,37 @@ class Installer {
 			$values['timezone'] = 'America/New_York';
 		}
 
+		// environment
+		$values['env'] = $this->post('env', 'text');
+
 		// http hosts
 		$values['httpHosts'] = array();
+		$values['mainHost'] = false;
+		$values['devHost'] = false;
 		$httpHosts = $this->post('httpHosts', 'textarea');
 		if(strlen($httpHosts)) {
 			$httpHosts = str_replace(array("'", '"'), '', $httpHosts);
 			$httpHosts = explode("\n", $httpHosts);
 			foreach($httpHosts as $key => $host) {
+				if(strpos($host, "@") === 0) {
+					$host = substr($host, 1);
+					if(!$values['mainHost']) {
+						$values['mainHost'] = $host;
+					}
+				} elseif(strpos($host, "+") === 0) {
+					$host = substr($host, 1);
+					if(!$values['devHost']) {
+						$values['devHost'] = $host;
+					}
+				}
 				$host = strtolower(trim(filter_var($host, FILTER_SANITIZE_URL)));
 				$httpHosts[$key] = $host;
 			}
 			$values['httpHosts'] = $httpHosts;
 		}
-		
-		// debug mode
-		$values['debugMode'] = $this->post('debugMode', 'int');
+
+		// // debug mode
+		// $values['debugMode'] = $this->post('debugMode', 'int');
 
 		// db configuration
 		$fields = array('dbUser', 'dbName', 'dbPass', 'dbHost', 'dbPort', 'dbEngine', 'dbCharset');
@@ -830,6 +883,9 @@ class Installer {
 		$file = __FILE__; 
 		$time = time();
 		$host = empty($values['httpHosts']) ? '' : implode(',', $values['httpHosts']);
+		$prod = $values['env'] === 'prod';
+		$mainHost = empty($values['mainHost']) ? '' : $values['mainHost'];
+		$devHost = empty($values['devHost']) ? '' : $values['devHost'];
 
 		if(function_exists('random_bytes')) {
 			$authSalt = sha1(random_bytes(random_int(40, 128)));
@@ -838,96 +894,94 @@ class Installer {
 			$authSalt = md5(mt_rand() . microtime(true));
 			$tableSalt = md5(mt_rand() . "$host$file$time"); 
 		}
-		
+
 		$cfg =
-			"\n/**" . 
-			"\n * Installer: Database Configuration" . 
-			"\n * " . 
-			"\n */" . 
-			"\n\$config->dbHost = '$values[dbHost]';" . 
-			"\n\$config->dbName = '$values[dbName]';" . 
-			"\n\$config->dbUser = '$values[dbUser]';" . 
-			"\n\$config->dbPass = '$values[dbPass]';" . 
-			"\n\$config->dbPort = '$values[dbPort]';";
+			"\n\$config->dbHost = \"$values[dbHost]\";" . 
+			"\n\$config->dbName = \"$values[dbName]\";" . 
+			"\n\$config->dbUser = \"$values[dbUser]\";" . 
+			"\n\$config->dbPass = \"$values[dbPass]\";" . 
+			"\n\$config->dbPort = \"$values[dbPort]\";";
 		
-		if(!empty($values['dbCharset']) && strtolower($values['dbCharset']) != 'utf8') $cfg .= "\n\$config->dbCharset = '$values[dbCharset]';";
-		if(!empty($values['dbEngine']) && $values['dbEngine'] == 'InnoDB') $cfg .= "\n\$config->dbEngine = 'InnoDB';";
+		if(!empty($values['dbCharset']) && strtolower($values['dbCharset']) != 'utf8') $cfg .= "\n\n\$config->dbCharset = \"$values[dbCharset]\";";
+		if(!empty($values['dbEngine']) && $values['dbEngine'] == 'InnoDB') $cfg .= "\n\$config->dbEngine = \"InnoDB\";";
 		
 		$cfg .= 
-			"\n" . 
-			"\n/**" . 
-			"\n * Installer: User Authentication Salt " . 
-			"\n * " .
-			"\n * This value was randomly generated for your system on " . date('Y/m/d') . "." . 
-			"\n * This should be kept as private as a password and never stored in the database." . 
-			"\n * Must be retained if you migrate your site from one server to another." . 
-			"\n * Do not change this value, or user passwords will no longer work." .
-			"\n * " . 
-			"\n */" . 
-			"\n\$config->userAuthSalt = '$authSalt'; " .
-			"\n" .
-			"\n/**" . 
-			"\n * Installer: Table Salt (General Purpose) " .
-			"\n * " .
-			"\n * Use this rather than userAuthSalt when a hashing salt is needed for non user " .
-			"\n * authentication purposes. Like with userAuthSalt, you should never change " . 
-			"\n * this value or it may break internal system comparisons that use it. " . 
-			"\n * " .
-			"\n */" . 
-			"\n\$config->tableSalt = '$tableSalt'; " .
-			"\n" . 
-			"\n/**" . 
-			"\n * Installer: File Permission Configuration" . 
-			"\n * " . 
-			"\n */" . 
-			"\n\$config->chmodDir = '0$values[chmodDir]'; // permission for directories created by ProcessWire" . 	
-			"\n\$config->chmodFile = '0$values[chmodFile]'; // permission for files created by ProcessWire " . 	
-			"\n" . 
-			"\n/**" . 
-			"\n * Installer: Time zone setting" . 
-			"\n * " . 
-			"\n */" . 
-			"\n\$config->timezone = '$values[timezone]';" .
-			"\n" .
-			"\n/**" .
-			"\n * Installer: Admin theme" .
-			"\n * " .
-			"\n */" .
-			"\n\$config->defaultAdminTheme = 'AdminThemeUikit';" .
-			"\n" . 
-			"\n/**" .
-			"\n * Installer: Unix timestamp of date/time installed" .
-			"\n * " .
-			"\n * This is used to detect which when certain behaviors must be backwards compatible." .
-			"\n * Please leave this value as-is." .
-			"\n * " .
-			"\n */" .
-			"\n\$config->installed = " . time() . ";" .
-			"\n\n";
+			"\n\n\$config->userAuthSalt = \"$authSalt\";" .
+			"\n\$config->tableSalt = \"$tableSalt\";";
 
 		if(!empty($values['httpHosts'])) {
-			$cfg .= 
-			"\n/**" . 
-			"\n * Installer: HTTP Hosts Whitelist" . 
-			"\n * " . 
-			"\n */" . 
-			"\n\$config->httpHosts = array("; 
+			$cfg .= "\n\n\$config->httpHosts = array("; 
 			foreach($values['httpHosts'] as $host) $cfg .= "'$host', ";
-			$cfg = rtrim($cfg, ", ") . ");\n\n";
+			$cfg = rtrim($cfg, ", ") . ");";
+		} else {
+			$this->alertErr("Please make sure to list at least one HTTP host name.");
+			return false;
 		}
-		
-		$cfg .=
-			"\n/**" .
-			"\n * Installer: Debug mode?" .
-			"\n * " . 
-			"\n * When debug mode is true, errors and exceptions are visible. " . 
-			"\n * When false, they are not visible except to superuser and in logs. " . 
-			"\n * Should be true for development sites and false for live/production sites. " . 
-			"\n * " .
-			"\n */" .
-			"\n\$config->debug = " . ($values['debugMode'] ? 'true;' : 'false;') . 
-			"\n\n";
-		
+
+		if(!$prod) {
+			if(($fp = fopen("./site/config.local.php", "a")) && fwrite($fp, $cfg)) {
+				fclose($fp); 
+				$this->alertOk("Saved credentials to ./site/config.local.php"); 
+			} else {
+				$this->alertErr("Error saving credentials to ./site/config.local.php. Please make sure it is writable."); 
+				return false;
+			}
+		} else {
+			$cfg .= "\n\$config->sessionCookieDomain = \".$mainHost\";";
+			if(($fp = fopen("./site/config.prod.php", "a")) && fwrite($fp, $cfg)) {
+				fclose($fp); 
+				$this->alertOk("Saved credentials to ./site/config.prod.php"); 
+			} else {
+				$this->alertErr("Error saving credentials to ./site/config.prod.php. Please make sure it is writable."); 
+				return false;
+			}
+		}
+
+		$cfg = 
+			"\n\$baseURL = \$_SERVER[\"SERVER_NAME\"];" .
+			"\n\$configOk = false;" .
+			"\nswitch(\$baseURL) {";
+
+		if(!$prod) {
+			foreach($values['httpHosts'] as $host) $cfg .= "\n\tcase \"$host\":";
+			$cfg .= 
+				"\n\t\t\$configOk = include \"config.local.php\";" .
+				"\n\t\tbreak;";
+		} else {
+			if($devHost) {
+				$cfg .= 
+					"\n\tcase \"$devHost\":" .
+					"\n\t\t\$configOk = include \"config.dev.php\";";
+			}
+			foreach($values['httpHosts'] as $host) {
+				if($host === $devHost) continue;
+				$cfg .= "\n\tcase \"$host\":";
+			}
+			$cfg .= 
+				"\n\t\t\$configOk = include \"config.prod.php\";" .
+				"\n\t\tbreak;";
+		}
+
+		$cfg .= 
+			"\n}" .
+			"\nif(!\$configOk) {" .
+			"\n\techo \"No matching config found for <strong>\$baseURL</strong>\";" .
+			"\n\texit();" .
+			"\n} else unset(\$configOk);" .
+			"\n";
+		if($mainHost) {
+			$cfg .= "\n\$config->mainHost = \"$mainHost\";";
+		}
+		if($devHost) {
+			$cfg .= "\n\$config->devHost = \"$devHost\";";
+		}
+		$cfg .= 
+			"\n\$config->chmodDir = '0$values[chmodDir]'; // permission for directories created by ProcessWire" .
+			"\n\$config->chmodFile = '0$values[chmodFile]'; // permission for files created by ProcessWire " .
+			"\n\$config->timezone = '$values[timezone]';" .
+			"\n\$config->defaultAdminTheme = 'AdminThemeUikit';" .
+			"\n\$config->installed = " . time() . ";";
+
 		if(($fp = fopen("./site/config.php", "a")) && fwrite($fp, $cfg)) {
 			fclose($fp); 
 			$this->alertOk("Saved configuration to ./site/config.php"); 
@@ -1006,9 +1060,12 @@ class Installer {
 			// they are installing site-default already or site-default is not available
 		}
 
-		// install the site/.htaccess (not really required but potentially useful fallback)
+		// replace the site/.htaccess for the more complete one
 		$dir = "./site/";
-		$defaultDir = "./" . self::DEFAULT_PROFILE . "/"; 
+		$defaultDir = "./" . self::DEFAULT_PROFILE . "/";
+		if(is_file($dir . '.htaccess')) {
+			unlink($dir . '.htaccess');
+		}
 		if(is_file($dir . 'htaccess.txt')) {
 			$this->renameFile($dir . 'htaccess.txt', $dir . '.htaccess'); 
 		} else if(is_file($defaultDir . 'htaccess.txt')) {
@@ -1130,7 +1187,7 @@ class Installer {
 		}
 
 		$this->sectionStart("fa-sign-in Admin Panel");
-		$this->input("admin_name", "Admin Login URL", $clean['admin_name'], array('type' => 'name')); 
+		$this->input("admin_name", "Admin Login URL", $clean['admin_name'], array('type' => 'name'));
 		$this->clear();
 		
 		$this->p(
@@ -1194,7 +1251,7 @@ class Installer {
 				'file' => '/.gitignore',
 			)
 		);
-		
+
 		foreach($this->findProfiles() as $name => $profile) {
 			$title = empty($profile['title']) ? $name : $profile['title'];
 			$items[$name] = array(
@@ -1203,7 +1260,7 @@ class Installer {
 				'file' => "/$name/", 
 			);
 		}
-		
+
 		foreach($items as $name => $item) {
 			if(!file_exists($item['path'])) continue;
 			$disabled = is_writable($item['path']) ? "" : "disabled";
@@ -1219,11 +1276,11 @@ class Installer {
 			if($removeNow && $isPost) {
 				if($checked && !$disabled) {
 					if(is_dir($item['path'])) {
-						$success = wireRmdir($item['path'], true); 
+						$success = wireRmdir($item['path'], true);
 					} else if(is_file($item['path'])) {
-						$success = @unlink($item['path']); 	
+						$success = @unlink($item['path']);
 					} else {
-						$success = true; 
+						$success = true;
 					}
 					if($success) {
 						// $this->ok("Completed: " . $item['label']); 
