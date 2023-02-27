@@ -1385,7 +1385,7 @@ class Installer {
 
 		$this->ok("Note that future runtime errors are logged to <b>/site/assets/logs/errors.txt</b> (not web accessible).");
 		$this->ok("For more configuration options see <b>/wire/config.php</b> and place any edits in <u>/site/config.php</u>.");
-		$this->ok("Consider making your <b>/site/config.php</b> file non-writable, and readable only to you and Apache.");
+		$this->ok("Consider making your <b>/site/config.php</b> and <b>/site/config.*.php</b> files non-writable, and readable only to you and Apache.");
 		$this->ok("View and edit your <b>.htaccess</b> file to force HTTPS, setup redirects, and more.");
 			
 		$this->p(
@@ -1438,6 +1438,13 @@ class Installer {
 			if($installer) {} // ignore
 			extract($fuel);
 			include($file);
+			if(empty($issues)) {
+				$this->alertOk("Modules installed"); 
+			} else {
+				$plural = count($issues) > 1;
+				$failedModules = "\"" . implode("\", \"", $issues) . "\"";
+				$this->alertWarn(sprintf('There was an issue with the %1$s: %2$s. You might have not properly cloned the fork with the submodules. Download the %1$s and install %3$s manually', "module" . $plural ? "s" : "", $failedModules, $plural ? "these" : "it"));
+			}
 		}
 	}
 
