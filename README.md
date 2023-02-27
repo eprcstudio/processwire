@@ -9,13 +9,21 @@ To have a look at the original README, please go to the [ProcessWire](https://gi
 Assuming you are part of the team:
 
 ```bash
-git clone --recurse-submodules https://github.com/eprcstudio/processwire /path/to/your/project/public
+cd /path/to/client
 ```
 
 ```bash
-cd /path/to/your/project/public
+git clone --recurse-submodules https://github.com/eprcstudio/processwire ./public
 ```
 
 ```bash
-rm -rf .git .gitattributes .gitignore .gitmodules
+cd ./public
+```
+
+```bash
+rm -rf .git .gitattributes .gitignore .gitmodules \
+    ./site-eprc/.git ./site-eprc/.gitmodules \
+    ./site-eprc/modules/ProcessDatabaseBackups/.git \
+    ./site-eprc/modules/ProcessEPRC/.git \
+    ./site-eprc/modules/ProcessWireUpgrade/.git
 ```
