@@ -1062,16 +1062,19 @@ class Installer {
 			// they are installing site-default already or site-default is not available
 		}
 
-		// replace the site/.htaccess for the more complete one
+		// install the site/.htaccess (not really required but potentially useful fallback)
 		$dir = "./site/";
 		$defaultDir = "./" . self::DEFAULT_PROFILE . "/";
-		if(is_file($dir . '.htaccess')) {
-			unlink($dir . '.htaccess');
-		}
 		if(is_file($dir . 'htaccess.txt')) {
 			$this->renameFile($dir . 'htaccess.txt', $dir . '.htaccess'); 
 		} else if(is_file($defaultDir . 'htaccess.txt')) {
 			$this->copyFile($defaultDir . 'htaccess.txt', $dir . '.htaccess');
+		}
+
+		// install the site/.gitignore
+		$dir = "./site/";
+		if(is_file($dir . 'gitignore.txt')) {
+			$this->renameFile($dir . 'gitignore.txt', $dir . '.gitignore'); 
 		}
 		
 		$this->sectionStop();
