@@ -534,14 +534,11 @@ class Installer {
 		$defaults['httpHosts'] = strtolower(filter_var($_SERVER['HTTP_HOST'], FILTER_SANITIZE_URL));
 
 		if(strpos($defaults['httpHosts'], 'www.') === 0) {
-			$defaults['httpHosts'] = "@" . substr($defaults['httpHosts'], 4) . "\n$defaults[httpHosts]"; 
+			$defaults['httpHosts'] = substr($defaults['httpHosts'], 4) . "\n$defaults[httpHosts]"; 
 		} else if(substr_count($defaults['httpHosts'], '.') == 1) {
-			$defaults['httpHosts'] = "@$defaults[httpHosts]\nwww.$defaults[httpHosts]";
+			$defaults['httpHosts'] .= "\nwww.$defaults[httpHosts]";
 		}
 		if($_SERVER['SERVER_NAME'] && $_SERVER['SERVER_NAME'] != $_SERVER['HTTP_HOST']) {
-			if(strpos($defaults['httpHosts'], "@") !== 1) {
-				$defaults['httpHosts'] = "@$defaults[httpHosts]";
-			}
 			$defaults['httpHosts'] .= "\n" . $_SERVER['SERVER_NAME']; 
 		}
 		
@@ -884,7 +881,12 @@ class Installer {
 		$time = time();
 		$host = empty($values['httpHosts']) ? '' : implode(',', $values['httpHosts']);
 		$prod = $values['env'] === 'prod';
-		$mainHost = empty($values['mainHost']) ? '' : $values['mainHost'];
+		$mainHost = !empty($values['mainHost'])
+			? (empty($values['httpHosts'])
+				? ''
+				: $values['httpHosts'][0]
+			)
+			: $values['mainHost'];
 		$devHost = empty($values['devHost']) ? '' : $values['devHost'];
 
 		if(function_exists('random_bytes')) {
