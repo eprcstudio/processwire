@@ -1496,12 +1496,17 @@ class WireDatabasePDO extends Wire implements WireDatabase {
 	 *
 	 * @param string $str
 	 * @return string
+	 * @throws WireDatabaseException
 	 *
 	 */
 	public function escapeTableCol($str) {
 		if(strpos($str, '.') === false) return $this->escapeTable($str); 
-		list($table, $col) = explode('.', $str); 
-		return $this->escapeTable($table) . '.' . $this->escapeCol($col);
+		list($table, $col) = explode('.', $str, 2);
+		$col = $this->escapeCol($col);
+		$table = $this->escapeTable($table);
+		if(!strlen($table)) throw new WireDatabaseException('Invalid table');
+		if(!strlen($col)) return $table;
+		return "$table.$col";
 	}
 
 	/**
@@ -1561,7 +1566,7 @@ class WireDatabasePDO extends Wire implements WireDatabase {
 		if($this->stripMB4 && is_string($str) && !empty($str)) {
 			$str = $this->wire()->sanitizer->removeMB4($str);
 		}
-		return $this->pdoLast()->quote($str);
+		return $this->pdoLast()->quote((string) $str);
 	}
 
 	/**

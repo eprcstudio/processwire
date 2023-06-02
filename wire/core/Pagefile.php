@@ -45,6 +45,7 @@
  * @property User|NullPage $createdUser User that added/uploaded the file or NullPage if not known (3.0.154)+. #pw-group-other
  * @property User|NullPage $modifiedUser User that last modified the file or NullPage if not known (3.0.154)+. #pw-group-other
  * @property bool $formatted True when value has had Textformatters applied. #pw-internal
+ * @property string $uploadName Original unsanitized filename at upload, see notes for uploadName() method (3.0.212+). #pw-group-other
  * 
  * @method void install($filename)
  * @method string httpUrl()
@@ -92,14 +93,6 @@ class Pagefile extends WireData implements WireArrayItem {
 	 * 
 	 */
 	protected $fieldValues = array();
-
-	/**
-	 * Reference to the mock/placeholder Page object used for custom fields
-	 * 
-	 * @var Page
-	 * 
-	 */
-	protected $filePage;
 
 	/**
 	 * Created user (populated only on rquest)
@@ -710,6 +703,9 @@ class Pagefile extends WireData implements WireArrayItem {
 			case 'fieldValues':	
 				$value = $this->fieldValues;
 				break;
+			case 'uploadName': 	
+				$value = $this->uploadName();
+				break;
 			default:
 				$value = $this->getFieldValue($key);
 		}
@@ -717,21 +713,6 @@ class Pagefile extends WireData implements WireArrayItem {
 		if(is_null($value)) return parent::get($key); 
 		
 		return $value; 
-	}
-
-	/**
-	 * Get the mock/placeholder Page object used for custom fields
-	 * 
-	 * #pw-internal
-	 * 
-	 * @return Page
-	 * 
-	 */
-	public function getFilePage() {
-		if(!$this->filePage) {
-			$this->filePage = $this->pagefiles->getFieldsPage();
-		}
-		return $this->filePage;
 	}
 
 	/**
@@ -758,7 +739,9 @@ class Pagefile extends WireData implements WireArrayItem {
 		
 		$field = $fieldgroup->getFieldContext($field); // get in context
 		$fieldtype = $field->type; /** @var Fieldtype $fieldtype */	
-		$page = $this->getFilePage();
+		$fileField = $this->pagefiles->getField(); /** @var Field $fileField */
+		$fileFieldtype = $fileField->type; /** @var FieldtypeFile|FieldtypeImage $fileFieldtype */	
+		$page = $fileFieldtype->getFieldsPage($fileField);
 		
 		if(array_key_exists($name, $this->fieldValues)) {
 			$value = $this->fieldValues[$name];
@@ -809,7 +792,7 @@ class Pagefile extends WireData implements WireArrayItem {
 		$field = $fieldgroup->getFieldContext($name);
 		if(!$field) return false;
 		
-		$page = $this->getFilePage();
+		$page = $this->pagefiles->getFieldsPage();
 
 		/** @var Fieldtype $fieldtype */
 		$fieldtype = $field->type;
@@ -952,6 +935,24 @@ class Pagefile extends WireData implements WireArrayItem {
 		$basename = parent::get('basename'); 
 		if(!$ext) $basename = basename($basename, "." . $this->ext());
 		return $basename;
+	}
+
+	/**
+	 * Original and unsanitized filename at the time it was uploaded
+	 *
+	 * Returned value is also entity encoded if $page’s output formatting state is ON.
+	 * For files uploaded in ProcessWire 3.0.212 or newer. Falls back to current file
+	 * basename for files that were uploaded prior to 3.0.212. 
+	 * 
+	 * @return string
+	 * @since 3.0.212
+	 * 
+	 */
+	public function uploadName() {
+		$uploadName = (string) $this->filedata('uploadName');
+		if(!strlen($uploadName)) $uploadName = $this->basename();
+		if($this->page && $this->page->of()) $uploadName = $this->wire()->sanitizer->entities($uploadName);
+		return $uploadName;
 	}
 
 	/**
