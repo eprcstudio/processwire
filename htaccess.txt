@@ -314,7 +314,7 @@ DirectoryIndex index.php index.html index.htm
 
   # 11C. Block via request URI (matches strings anywhere in request URL)
   # -----------------------------------------------------------------------------------------------
-  RewriteCond %{REQUEST_URI} wp-.*\.php$ [NC,OR]
+  RewriteCond %{REQUEST_URI} (wp-.*) [NC,OR]
   RewriteCond %{REQUEST_URI} (\^|`|<|>|\\|\|) [NC,OR]
   RewriteCond %{REQUEST_URI} ([a-z0-9]{2000,}) [NC,OR]
   RewriteCond %{REQUEST_URI} (=?\\(\'|%27)/?)(\.) [NC,OR]
