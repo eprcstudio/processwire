@@ -372,6 +372,8 @@ class InputfieldPage extends Inputfield implements ConfigurableModule {
 				$instance = null;
 			}
 			$selector = self::populateFindPagesSelector($page, $findPagesSelector, $instance);
+			if($templateIDs) $selector = trim("$selector, templates_id=$templateIDs", ", "); 
+			if($this->parent_id) $selector = trim("$selector, parent_id=$this->parent_id", ", "); 
 			$children = $pages->find($selector); 
 
 		} else if($this->findPagesCode) {
@@ -1080,7 +1082,7 @@ class InputfieldPage extends Inputfield implements ConfigurableModule {
 
 		$user = $this->wire()->user; 
 		$key = "_{$this->name}_add_items";
-		$value = trim($input->$key); 
+		$value = trim((string) $input->$key); 
 		
 		if(empty($value)) return;
 

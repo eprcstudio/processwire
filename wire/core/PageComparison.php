@@ -5,12 +5,20 @@
  *
  * Provides implementation for Page comparison functions.
  *
- * ProcessWire 3.x, Copyright 2020 by Ryan Cramer
+ * ProcessWire 3.x, Copyright 2023 by Ryan Cramer
  * https://processwire.com
  *
  */
 
 class PageComparison {
+
+	/**
+	 * Selector properties that the matches() method ignores
+	 * 
+	 * @var string[] 
+	 * 
+	 */
+	protected $matchesIgnores = array('limit', 'start', 'sort', 'include');
 
 	/** 
 	 * Is this page of the given type? (status, template, etc.)
@@ -186,12 +194,14 @@ class PageComparison {
 	 * Given a Selectors object or a selector string, return whether this Page matches it
 	 *
 	 * @param Page $page
-	 * @param string|Selectors $s
+	 * @param string|array|Selectors $s
+	 * @param array $options Options to modify behavior (3.0.225+ only):
+	 *  - `useDatabase` (bool|null): Use database for matching rather than in-memory? (default=false)
 	 * @return bool
 	 *
 	 */
-	public function matches(Page $page, $s) {
-		
+	public function matches(Page $page, $s, array $options = array()) {
+	
 		$selectors = array();
 
 		if(is_string($s) || is_int($s)) {
@@ -220,15 +230,22 @@ class PageComparison {
 			}
 
 		} else if($s instanceof Selectors) {
-			$selectors = $s; 
+			$selectors = $s;
+
+		} else if(is_array($s)) {
+			$selectors = $page->wire(new Selectors($s));
 
 		} else { 
 			// unknown data type to match
 			return false;
 		}
+		
+		if(!empty($options['useDatabase'])) {
+			$selectors->add(new SelectorEqual('id', $page->id))->add(new SelectorEqual('include', 'all'));
+			return $page->wire()->pages->count($selectors) > 0;
+		} 
 
 		$matches = false;
-		$ignores = array('limit', 'start', 'sort', 'include');
 
 		foreach($selectors as $selector) {
 			
@@ -237,7 +254,7 @@ class PageComparison {
 			
 			if(is_array($property)) $property = reset($property);
 			if(strpos($property, '.')) list($property, $subproperty) = explode('.', $property, 2);
-			if(in_array($property, $ignores)) continue;
+			if(in_array($property, $this->matchesIgnores)) continue;
 			
 			$matches = true; 
 			$value = $page->getUnformatted($property); 
@@ -260,7 +277,7 @@ class PageComparison {
 
 		return $matches; 
 	}
-
+	
 	/**
 	 * Given an object, return the value(s) it represents (optionally from a property in the object)
 	 * 
@@ -397,4 +414,3 @@ class PageComparison {
 
 
 }
-

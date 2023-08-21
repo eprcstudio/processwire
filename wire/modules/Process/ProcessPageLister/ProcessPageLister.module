@@ -617,8 +617,12 @@ class ProcessPageLister extends Process implements ConfigurableModule {
 			try {
 				$is->processInput($input->post);
 				$selector = $this->sessionGet("selector");
-				if($selector != $is->value) {
-					$this->sessionSet("selector", $is->value);
+				$isSelector = (string) $is->value; // selector from InputfieldSelector
+				if($selector === $this->defaultSelector && !strlen($isSelector)) {
+					// do not reset if selector matches default selector
+				} else if($selector != $isSelector) {
+					// reset
+					$this->sessionSet("selector", $isSelector);
 					$this->sessionSet("pageNum", 1);
 					$input->setPageNum(1);
 				}
@@ -1257,7 +1261,13 @@ class ProcessPageLister extends Process implements ConfigurableModule {
 		if($subfield === 'keys' || $subfield === 'xtra') return false;
 		$fieldtype = $field->type;
 		$schema = $fieldtype->getDatabaseSchema($field);
-		return isset($schema[$subfield]);
+		if(isset($schema[$subfield])) return true;
+		$selectorInfo = $fieldtype->getSelectorInfo($field);
+		if(isset($selectorInfo['input']) && $selectorInfo['input'] === 'page') {
+			if(isset($selectorInfo['subfields'][$subfield])) return true;
+			if($this->wire()->pages->loader()->isNativeColumn($subfield)) return true;
+		}
+		return false;
 	}
 
 	/**

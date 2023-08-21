@@ -1828,7 +1828,8 @@ class PageFinder extends Wire {
 					// shortcut for blank value condition: this ensures that NULL/non-existence is considered blank
 					// without this section the query would still work, but a blank value must actually be present in the field
 					$isEmptyValue = $fieldtype->isEmptyValue($field, $value);
-					$useEmpty = $isEmptyValue || $operator[0] === '<' || ((int) $value < 0 && $operator[0] === '>');	
+					$useEmpty = $isEmptyValue || $operator[0] === '<' || ((int) $value < 0 && $operator[0] === '>') 
+						|| ($operator === '!=' && $isEmptyValue === false);	
 					if($useEmpty && strpos($subfield, 'data') === 0) { // && !$fieldtype instanceof FieldtypeMulti) {
 						if($isEmptyValue) $numEmptyValues++;
 						if(in_array($operator, array('=', '!=', '<', '<=', '>', '>='))) {
@@ -2137,23 +2138,52 @@ class PageFinder extends Wire {
 			
 		} else if($operator === '!=' || $operator === '<>') {
 			// not equals
-			// $whereType = 'AND';
-			if($value === "0" && !$ft->isEmptyValue($field, "0")) {
-				// may match rows with no value present
+			$zeroIsEmpty = $ft->isEmptyValue($field, "0"); 
+			$zeroIsNotEmpty = !$zeroIsEmpty;
+			$value = (string) $value;
+			$blankValue = (string) $blankValue;
+			if($value === '') {
+				// match present rows that do not contain a blank string (or 0, when applicable)
+				$sql = "$tableAlias.$col IS NOT NULL AND ($tableAlias.$col!=''";
+				if($zeroIsEmpty) {
+					$sql .= " AND $tableAlias.$col!='0'";
+				} else {
+					$sql .= " OR $tableAlias.$col='0'";
+				}
+				$sql .= ')';
+				
+			} else if($value === "0" && $zeroIsNotEmpty) {
+				// may match non-rows (no value present) or row with value=0
 				$sql = "$tableAlias.$col IS NULL OR $tableAlias.$col!='0'";
+
+			} else if($value !== "0" && $zeroIsEmpty) {
+				// match all rows except empty and those having specific non-empty value
+				$bindKey = $query->bindValueGetKey($value);
+				$sql = "$tableAlias.$col IS NULL OR $tableAlias.$col!=$bindKey";
 				
 			} else if($blankIsObject) {
+				// match all present rows
 				$sql = "$tableAlias.$col IS NOT NULL";
 				
 			} else {
-				$bindKey = $query->bindValueGetKey($blankValue);
-				$sql = "$tableAlias.$col IS NOT NULL AND ($tableAlias.$col!=$bindKey";
-				if($blankValue !== "0" && !$ft->isEmptyValue($field, "0")) {
+				// match all present rows that are not blankValue and not given blank value...
+				$bindKeyBlank = $query->bindValueGetKey($blankValue);
+				$bindKeyValue = $query->bindValueGetKey($value);
+				$sql = "$tableAlias.$col IS NOT NULL AND $tableAlias.$col!=$bindKeyValue AND ($tableAlias.$col!=$bindKeyBlank";
+				if($zeroIsNotEmpty && $blankValue !== "0" && $value !== "0") {
+					// ...allow for 0 to match also if 0 is not considered empty value
 					$sql .= " OR $tableAlias.$col='0'";
 				}
 				$sql .= ")";
 			}
-			
+			if($ft instanceof FieldtypeMulti && !$ft->isEmptyValue($field, $value)) {
+				// when a multi-row field is in use, exclude match when any of the rows contain $value
+				$tableMulti = $table . "__multi$tableCnt";
+				$bindKey = $query->bindValueGetKey($value);
+				$query->leftjoin("$table AS $tableMulti ON $tableMulti.pages_id=pages.id AND $tableMulti.$col=$bindKey");
+				$query->where("$tableMulti.$col IS NULL");
+			}
+
 		} else if($operator == '<' || $operator == '<=') {
 			// less than 
 			if($value > 0 && $ft->isEmptyValue($field, "0")) {
@@ -2412,6 +2442,24 @@ class PageFinder extends Wire {
 					$value = "if(pages.name$language!='', pages.name$language, pages.name)";
 				} else {
 					$value = "pages." . $database->escapeCol($value);
+				}
+				
+			} else if(($value === 'path' || $value === 'url') && $this->wire()->modules->isInstalled('PagePaths')) {
+				static $pathN = 0;
+				$pathN++;
+				$pathsTable = "_sort_pages_paths$pathN";
+				if($language && !$language->isDefault() && $this->supportsLanguagePageNames()) {
+					$query->leftjoin("pages_paths AS $pathsTable ON $pathsTable.pages_id=pages.id AND $pathsTable.language_id=0");
+					$lid = (int) $language->id;
+					$asc = $descending ? 'DESC' : 'ASC';
+					$pathsLangTable = $pathsTable . "_$lid";
+					$s = "pages_paths AS $pathsLangTable ON $pathsLangTable.pages_id=pages.id AND $pathsLangTable.language_id=$lid";
+					$query->leftjoin($s);
+					$query->orderby("if($pathsLangTable.pages_id IS NULL, $pathsTable.path, $pathsLangTable.path) $asc");
+					$value = false;
+				} else {
+					$query->leftjoin("pages_paths AS $pathsTable ON $pathsTable.pages_id=pages.id");
+					$value = "$pathsTable.path";
 				}
 
 			} else {
@@ -3696,4 +3744,3 @@ class PageFinder extends Wire {
  * @property PageFinder $pageFinder PageFinder instance that initiated the query
  */
 abstract class PageFinderDatabaseQuerySelect extends DatabaseQuerySelect { }
-

@@ -158,11 +158,10 @@
 
 				if(options.fieldset) {
 					setupFieldsets();
-					$original.children('option').each(function() {
-						var name = $(this).text();
-						if(name.indexOf('_END') > 0 && name.substring(name.length - 4) == '_END') {
-							fieldsetCloseItems[name] = $(this);
-						}
+					findFieldsetCloseItems($original);
+					$original.on('rebuild', function(e) { 
+						console.log('asmSelect REBUILD');
+						findFieldsetCloseItems($(this)); 
 					});
 				}
 
@@ -938,6 +937,11 @@
 				var $iframe = pwModalWindow(href, {}, 'medium'); 
 
 				$iframe.on('load', function() {
+					// slight delay is necessary in jQuery 3.x, otherwise visible buttons found to be not visible
+					setTimeout(function() { iframeLoaded(); }, 100); 
+				});
+				
+				var iframeLoaded = function() {
 
 					var $icontents = $iframe.contents();	
 					var buttons = [];
@@ -989,7 +993,8 @@
 						$button.hide();
 					}); 
 					$iframe.setButtons(buttons); 
-				}); 
+				}; 
+				
 				return false; 
 			}
 
@@ -1022,6 +1027,21 @@
 							break;
 						}
 						$span.prepend($('<span class="asmFieldsetIndent"></span>'));
+					}
+				});
+			}
+			
+			/**
+			 * Find all options with a name that ends with _END and populate to fieldsetCloseItems
+			 * 
+			 * @param $select
+			 * 
+			 */
+			function findFieldsetCloseItems($select) {
+				$select.children('option').each(function() {
+					var name = $(this).text();
+					if(name.indexOf('_END') > 0 && name.substring(name.length - 4) == '_END') {
+						fieldsetCloseItems[name] = $(this);
 					}
 				});
 			}

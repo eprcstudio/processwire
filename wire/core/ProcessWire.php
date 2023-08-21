@@ -79,13 +79,13 @@ class ProcessWire extends Wire {
 	 * Reversion revision number
 	 * 
 	 */
-	const versionRevision = 216;
+	const versionRevision = 225;
 
 	/**
 	 * Version suffix string (when applicable)
 	 * 
 	 */
-	const versionSuffix = 'dev';
+	const versionSuffix = '';
 
 	/**
 	 * Minimum required index.php version, represented by the PROCESSWIRE define
@@ -546,11 +546,7 @@ class ProcessWire extends Wire {
 			throw new WireDatabaseException($e->getMessage()); 
 		}
 	
-		/** @var WireCache $cache */
-		$cache = $this->wire('cache', new WireCache(), true); 
-		$cacheNames = $config->preloadCacheNames;
-		if($database->getEngine() === 'innodb') $cacheNames[] = 'InnoDB.stopwords';
-		$cache->preload($cacheNames); 
+		$this->wire('cache', new WireCache(), true); 
 		
 		$modules = null;
 		try { 		
@@ -567,7 +563,7 @@ class ProcessWire extends Wire {
 		}
 		$this->updater = $modules->get('SystemUpdater'); 
 		if(!$this->updater) {
-			$modules->resetCache();
+			$modules->refresh();
 			$this->updater = $modules->get('SystemUpdater');
 		}
 

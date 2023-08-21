@@ -467,6 +467,7 @@ class InputfieldTinyMCESettings extends InputfieldTinyMCEClass {
 			$contentStyle = implode(' ', $lines);
 			while(strpos($contentStyle, '  ') !== false) $contentStyle = str_replace('  ', ' ', $contentStyle);
 			$contentStyle = str_replace(['{ ', ' }'], ['{', '}'], $contentStyle);
+			$contentStyle = str_replace('@', "\\@", $contentStyle);
 			$settings['content_style'] = $contentStyle;
 		}
 	
@@ -475,6 +476,12 @@ class InputfieldTinyMCESettings extends InputfieldTinyMCEClass {
 			$settings['plugins'] = implode(' ', $settings['plugins']); 
 		}
 		*/
+	
+		// ensure blank object properties resolve to {} in JSON rather than []	
+		foreach($this->tools()->jsonBlankObjectProperties as $name) {
+			if(!isset($settings[$name]) || !empty($settings[$name]) || !is_array($settings[$name])) continue;
+			$settings[$name] = (object) $settings[$name];
+		}
 
 		return $settings;
 	}
@@ -755,7 +762,7 @@ class InputfieldTinyMCESettings extends InputfieldTinyMCEClass {
 		if($inputfield->lazyMode) $features[] = "lazyMode$inputfield->lazyMode";
 		
 		$inputfield->wrapAttr('data-configName', $configName);
-		$inputfield->wrapAttr('data-settings', json_encode($dataSettings));
+		$inputfield->wrapAttr('data-settings', $this->tools()->jsonEncode($dataSettings, 'data-settings', false));
 		$inputfield->wrapAttr('data-features', implode(',', $features));
 	}
 

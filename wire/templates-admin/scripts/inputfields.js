@@ -1106,8 +1106,8 @@ function InputfieldDependencies($target) {
 		var matched = 0;
 
 		switch(operator) {
-			case '=': if(value == conditionValue) matched++; break;
-			case '!=': if(value != conditionValue) matched++; break;
+			case '=': if(value === conditionValue) matched++; break;
+			case '!=': if(value !== conditionValue) matched++; break;
 			case '>': if(value > conditionValue) matched++; break;
 			case '<': if(value < conditionValue) matched++; break;
 			case '>=': if(value >= conditionValue) matched++; break;
@@ -1389,8 +1389,8 @@ function InputfieldDependencies($target) {
 				}
 
 			} else if(condition.type == 'required') {
-				if(matched > 0) {
-					// make it required it
+				if(matched >= numMatchesRequired) {
+					// make it required
 					requiredMatches++;
 				} else {
 					notRequiredMatches++;

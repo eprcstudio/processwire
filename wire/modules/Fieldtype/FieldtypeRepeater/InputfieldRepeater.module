@@ -142,22 +142,24 @@ class InputfieldRepeater extends Inputfield implements InputfieldItemList {
 		
 		$out = '';
 		$repeaterTitle = $this->field ? $this->field->get('repeaterTitle') : '';
-		$colorPrefix = "\rCOLOR\r";
+		$colorPrefix = "\tC/O/L/O/R:"; 
+		$hasColorPrefix = false;
 
 		if($page->id && $repeaterTitle) {
 			// custom repeater titles specified
 			$hasCnt = stripos($repeaterTitle, '#n') !== false;
+			
+			if(strpos($repeaterTitle, '#') !== false) {
+				$repeaterTitle = preg_replace('/#([a-f\d]{3,})/i', "$colorPrefix$1", $repeaterTitle);
+				if(strpos($repeaterTitle, $colorPrefix) !== false) $hasColorPrefix = true;
+			}
 			
 			// update index numbers?
 			if($hasCnt) {
 				// replace "#n" with index number of repeater item
 				$repeaterTitle = str_replace("#n", "#$cnt", $repeaterTitle);
 			}
-			
-			if(strpos($repeaterTitle, '#') !== false) {
-				$repeaterTitle = preg_replace('/#([a-f\d]{3,})/i', "$colorPrefix$1", $out);
-			}
-			
+
 			if(strpos($repeaterTitle, '{') !== false) {
 				// formatted {label}
 				$out = $page->getText($repeaterTitle, true);
@@ -208,8 +210,10 @@ class InputfieldRepeater extends Inputfield implements InputfieldItemList {
 			$sp = html_entity_decode('&#8203;', 0, 'UTF-8');
 			$out = str_replace('#', "#$sp", $out);
 		}
-		
-		$out = str_replace($colorPrefix, '#', $out);
+	
+		if($hasColorPrefix && strpos($out, $colorPrefix) === strrpos($out, $colorPrefix)) {
+			$out = str_replace($colorPrefix, '#', $out);
+		}
 		
 		return $out;
 	}
@@ -627,7 +631,12 @@ class InputfieldRepeater extends Inputfield implements InputfieldItemList {
 		
 		if(!$isPost && count($typeStyles)) {
 			$styles = "<style type='text/css'>" . implode("\n", $typeStyles) . "</style>";
-			$this->wire()->adminTheme->addExtraMarkup('head', $styles);
+			if($this->wire()->config->ajax && ($this->page instanceof RepeaterPage || $this->hasPage instanceof RepeaterPage)) {
+				// ajax-rendered nested repeater page
+				$this->prependMarkup .= $styles;
+			} else {
+				$this->wire()->adminTheme->addExtraMarkup('head', $styles);
+			}
 		}	
 
 		return $form; 
