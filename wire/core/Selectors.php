@@ -771,38 +771,99 @@ class Selectors extends WireArray {
 	 * @param Wire $item
 	 * @return bool
 	 * 
-	 */
+	 */ 
 	public function matches(Wire $item) {
-		
-		// if item provides it's own matches function, then let it have control
+
+		// if item provides it's own matches function (like Page), then let it have control
 		if($item instanceof WireMatchable) return $item->matches($this);
-	
+
+		$orGroups = array();
 		$matches = true;
+
 		foreach($this as $selector) {
-			$value = array();
-			foreach($selector->fields as $property) {
-				if(strpos($property, '.') && $item instanceof WireData) {
-					$value[] =  $item->getDot($property);
-				} else {
-					$value[] = (string) $item->$property;
-				}
-			}
-			if(!$selector->matches($value)) {
-				$matches = false;
-				// attempt any alternate operators, if present
-				foreach($selector->altOperators as $altOperator) {
-					$altSelector = self::getSelectorByOperator($altOperator); 
-					if(!$altSelector) continue;
-					$this->wire($altSelector);
-					$selector->copyTo($altSelector);
-					$matches = $altSelector->matches($value);
-					if($matches) break;
-				}
-				// if neither selector nor altSelectors match then stop
+			if($selector->quote === '(' && self::stringHasOperator($selector->value())) {
+				$name = $selector->field();
+				if(!isset($orGroups[$name])) $orGroups[$name] = array();
+				$orGroups[$name][] = $selector->value;
+			} else {
+				$matches = $this->matchesSelector($selector, $item);
 				if(!$matches) break;
 			}
 		}
+
+		if($matches && count($orGroups)) {
+			$matches = $this->matchesOrGroups($orGroups, $item);
+		}
+
+		return $matches;
+	}
+
+	/**
+	 * Does the given Wire match these Selector (single)?
+	 *
+	 * @param Selector $selector
+	 * @param Wire $item
+	 * @return bool
+	 * @since 3.0.330
+	 *
+	 */
+	protected function matchesSelector(Selector $selector, Wire $item) {
+		$value = array();
 		
+		foreach($selector->fields as $property) {
+			if(strpos($property, '.') && $item instanceof WireData) {
+				$v = $item->getDot($property);
+			} else {
+				$v = $item->$property;
+			}
+			if(is_array($v)) {
+				$value = array_merge($value, $v);
+			} else {
+				$value[] = (string) $v;
+			}
+		}
+	
+		$matches = $selector->matches($value);
+		if($matches) return true;
+		
+		// attempt any alternate operators, if present
+		foreach($selector->altOperators as $altOperator) {
+			$altSelector = self::getSelectorByOperator($altOperator);
+			if(!$altSelector) continue;
+			$this->wire($altSelector);
+			$selector->copyTo($altSelector);
+			$matches = $altSelector->matches($value);
+			if($matches) break;
+		}
+
+		return $matches;
+	}
+	
+	/**
+	 * Do the given OR-groups match the given Wire?
+	 *
+	 * @param array|string[]|array[] $orGroups
+	 * @param Wire $item
+	 * @return bool
+	 * @since 3.0.330
+	 *
+	 */
+	protected function matchesOrGroups(array $orGroups, Wire $item) {
+		$matches = true;
+		foreach($orGroups as $selectorStrings) {
+			$orGroupMatches = false;
+			foreach($selectorStrings as $s) {
+				/** @var Selectors $orGroupSelectors */
+				$orGroupSelectors = $this->wire(new Selectors($s));
+				if(!$orGroupSelectors->matches($item)) continue;
+				$orGroupMatches = true;
+				break;
+			}
+			if(!$orGroupMatches) {
+				$matches = false;
+				break;
+			}
+		}
 		return $matches;
 	}
 
@@ -1276,8 +1337,8 @@ class Selectors extends WireArray {
 	 *  - `getIndexType` (string): Index type to use in returned array: 'operator', 'className', 'class', or 'none' (default='class')
 	 *  - `getValueType` (string): Value type to use in returned array: 'operator', 'class', 'className', 'label', 'description', 'compareType', 'verbose' (default='operator').
 	 *     If 'verbose' option used then assoc array returned for each operator containing 'class', 'className', 'operator', 'compareType', 'label', 'description'.
-	 * @return array|string|int Returned array where both keys and values are operators (or values are requested 'valueType' option)
-	 *   If 'operator' option specified, return value is string, int or array (requested 'valueType'), and there is no indexType.
+	 * @return array|string|int Returned array where values are operators and keys are class names (or requested 'getIndexType or 'getValueType' options)
+	 *   If 'operator' option specified, return value is string, int or array (of requested 'getValueType'), and there is no index.
 	 * @since 3.0.154
 	 *
 	 */
