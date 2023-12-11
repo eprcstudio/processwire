@@ -597,12 +597,14 @@ class Installer {
 		$this->sectionStart('fa-server Environment / HTTP Host Names');
 		$this->p(
 			"Please select in which environment you’re installing ProcessWire. The installer will generate the credentials files and edit the config file accordingly."
-		); 
+		);
 		$this->select(
-			"environment",
+			"env",
 			"",
-			$values["env"], [
+			$values["env"],
+			[
 				"local" => "Local",
+				"eprc" => "EPRC",
 				"prod" => "Production"
 			],
 		);
@@ -690,23 +692,25 @@ class Installer {
 		$values['httpHosts'] = array();
 		$values['mainHost'] = false;
 		$values['devHost'] = false;
+		$which = false;
 		$httpHosts = $this->post('httpHosts', 'textarea');
 		if(strlen($httpHosts)) {
 			$httpHosts = str_replace(array("'", '"'), '', $httpHosts);
 			$httpHosts = explode("\n", $httpHosts);
 			foreach($httpHosts as $key => $host) {
-				if(strpos($host, "@") === 0) {
-					$host = substr($host, 1);
-					if(!$values['mainHost']) {
-						$values['mainHost'] = $host;
-					}
-				} elseif(strpos($host, "+") === 0) {
-					$host = substr($host, 1);
-					if(!$values['devHost']) {
-						$values['devHost'] = $host;
+				if($values['env'] === "prod") {
+					if(strpos($host, "@") === 0) {
+						$host = substr($host, 1);
+						$which = 'mainHost';
+					} elseif(strpos($host, "+") === 0) {
+						$host = substr($host, 1);
+						$which = 'devHost';
 					}
 				}
 				$host = strtolower(trim(filter_var($host, FILTER_SANITIZE_URL)));
+				if($which && !$values[$which]) {
+					$values[$which] = $host;
+				}
 				$httpHosts[$key] = $host;
 			}
 			$values['httpHosts'] = $httpHosts;
@@ -879,15 +883,15 @@ class Installer {
 		
 		$file = __FILE__; 
 		$time = time();
+		$env = $values['env'];
 		$host = empty($values['httpHosts']) ? '' : implode(',', $values['httpHosts']);
-		$prod = $values['env'] === 'prod';
 		$mainHost = !empty($values['mainHost'])
-			? (empty($values['httpHosts'])
-				? ''
-				: $values['httpHosts'][0]
-			)
-			: $values['mainHost'];
-		$devHost = empty($values['devHost']) ? '' : $values['devHost'];
+			? $values['mainHost']
+			: (!empty($values['httpHosts'])
+				? $values['httpHosts'][0]
+				: ''
+			);
+		$devHost = !empty($values['devHost']) ? $values['devHost'] : '';
 
 		if(function_exists('random_bytes')) {
 			$authSalt = sha1(random_bytes(random_int(40, 128)));
@@ -906,37 +910,26 @@ class Installer {
 		
 		if(!empty($values['dbCharset']) && strtolower($values['dbCharset']) != 'utf8') $cfg .= "\n\n\$config->dbCharset = \"$values[dbCharset]\";";
 		if(!empty($values['dbEngine']) && $values['dbEngine'] == 'InnoDB') $cfg .= "\n\$config->dbEngine = \"InnoDB\";";
-		
-		$cfg .= 
-			"\n\n\$config->userAuthSalt = \"$authSalt\";" .
-			"\n\$config->tableSalt = \"$tableSalt\";";
 
 		if(!empty($values['httpHosts'])) {
 			$cfg .= "\n\n\$config->httpHosts = array("; 
-			foreach($values['httpHosts'] as $host) $cfg .= "'$host', ";
+			foreach($values['httpHosts'] as $host) $cfg .= "\"$host\", ";
 			$cfg = rtrim($cfg, ", ") . ");";
 		} else {
 			$this->alertErr("Please make sure to list at least one HTTP host name.");
 			return false;
 		}
 
-		if(!$prod) {
-			if(($fp = fopen("./site/config.local.php", "a")) && fwrite($fp, $cfg)) {
-				fclose($fp); 
-				$this->alertOk("Saved credentials to ./site/config.local.php"); 
-			} else {
-				$this->alertErr("Error saving credentials to ./site/config.local.php. Please make sure it is writable."); 
-				return false;
-			}
-		} else {
+		if($env === 'prod') {
 			$cfg .= "\n\$config->sessionCookieDomain = \".$mainHost\";";
-			if(($fp = fopen("./site/config.prod.php", "a")) && fwrite($fp, $cfg)) {
-				fclose($fp); 
-				$this->alertOk("Saved credentials to ./site/config.prod.php"); 
-			} else {
-				$this->alertErr("Error saving credentials to ./site/config.prod.php. Please make sure it is writable."); 
-				return false;
-			}
+		}
+
+		if(($fp = fopen("./site/config.$env.php", "a")) && fwrite($fp, $cfg)) {
+			fclose($fp); 
+			$this->alertOk("Saved credentials to ./site/config.$env.php"); 
+		} else {
+			$this->alertErr("Error saving credentials to ./site/config.$env.php. Please make sure it is writable."); 
+			return false;
 		}
 
 		$cfg = 
@@ -944,16 +937,11 @@ class Installer {
 			"\n\$configOk = false;" .
 			"\nswitch(\$baseURL) {";
 
-		if(!$prod) {
-			foreach($values['httpHosts'] as $host) $cfg .= "\n\tcase \"$host\":";
-			$cfg .= 
-				"\n\t\t\$configOk = include \"config.local.php\";" .
-				"\n\t\tbreak;";
-		} else {
+		if($env === 'prod') {
 			if($devHost) {
 				$cfg .= 
 					"\n\tcase \"$devHost\":" .
-					"\n\t\t\$configOk = include \"config.dev.php\";";
+					"\n\t\tinclude \"config.dev.php\";";
 			}
 			foreach($values['httpHosts'] as $host) {
 				if($host === $devHost) continue;
@@ -961,6 +949,12 @@ class Installer {
 			}
 			$cfg .= 
 				"\n\t\t\$configOk = include \"config.prod.php\";" .
+				"\n\t\tbreak;";
+		} else {
+			foreach($values['httpHosts'] as $host) $cfg .= "\n\tcase \"$host\":";
+			$cfg .= 
+				"\n\t\tinclude \"config.dev.php\";" .
+				"\n\t\t\$configOk = include \"config.$env.php\";" .
 				"\n\t\tbreak;";
 		}
 
@@ -977,7 +971,10 @@ class Installer {
 		if($devHost) {
 			$cfg .= "\n\$config->devHost = \"$devHost\";";
 		}
+		
 		$cfg .= 
+			"\n\$config->userAuthSalt = \"$authSalt\";" .
+			"\n\$config->tableSalt = \"$tableSalt\";" .
 			"\n\$config->chmodDir = '0$values[chmodDir]'; // permission for directories created by ProcessWire" .
 			"\n\$config->chmodFile = '0$values[chmodFile]'; // permission for files created by ProcessWire " .
 			"\n\$config->timezone = '$values[timezone]';" .
