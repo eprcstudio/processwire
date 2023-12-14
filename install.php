@@ -975,10 +975,10 @@ class Installer {
 		$cfg .= 
 			"\n\$config->userAuthSalt = \"$authSalt\";" .
 			"\n\$config->tableSalt = \"$tableSalt\";" .
-			"\n\$config->chmodDir = '0$values[chmodDir]'; // permission for directories created by ProcessWire" .
-			"\n\$config->chmodFile = '0$values[chmodFile]'; // permission for files created by ProcessWire " .
-			"\n\$config->timezone = '$values[timezone]';" .
-			"\n\$config->defaultAdminTheme = 'AdminThemeUikit';" .
+			"\n\$config->chmodDir = \"0$values[chmodDir]\"; // permission for directories created by ProcessWire" .
+			"\n\$config->chmodFile = \"0$values[chmodFile]\"; // permission for files created by ProcessWire " .
+			"\n\$config->timezone = \"$values[timezone]\";" .
+			"\n\$config->defaultAdminTheme = \"AdminThemeUikit\";" .
 			"\n\$config->installed = " . time() . ";";
 
 		if(($fp = fopen("./site/config.php", "a")) && fwrite($fp, $cfg)) {
