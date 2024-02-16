@@ -70,6 +70,7 @@
  * @property bool $hasFiles Does this page have one or more files in its files path? #pw-group-files
  * @property bool $outputFormatting Whether output formatting is enabled or not. #pw-advanced
  * @property int $sort Sort order of this page relative to siblings (applicable when manual sorting is used). #pw-group-system
+ * @property int|null $sortPrevious Previous sort order, if changed (3.0.235+) #pw-group-system
  * @property int $index Index of this page relative to its siblings, regardless of sort (starting from 0). #pw-group-traversal
  * @property string $sortfield Field that a page is sorted by relative to its siblings (default="sort", which means drag/drop manual) #pw-group-system
  * @property null|array _statusCorruptedFields Field names that caused the page to have Page::statusCorrupted status. #pw-internal
@@ -104,7 +105,7 @@
  * 
  * Methods added by PageRender.module: 
  * -----------------------------------
- * @method string|mixed render($fieldName = '') Returns rendered page markup. If given a $fieldName argument, it behaves same as the renderField() method. #pw-group-output-rendering
+ * @method string|mixed render($arg1 = null, $arg2 = null) Returns rendered page markup. Please see the `PageRender::renderPage()` method for arguments and usage details. #pw-group-output-rendering
  * 
  * Methods added by PagePermissions.module: 
  * ----------------------------------------
@@ -139,7 +140,9 @@
  * Methods added by LanguageSupport.module (not installed by default) 
  * -----------------------------------------------------------------
  * @method Page setLanguageValue($language, $field, $value) Set value for field in language (requires LanguageSupport module). $language may be ID, language name or Language object. Field should be field name (string). #pw-group-languages
- * @method Page getLanguageValue($language, $field) Get value for field in language (requires LanguageSupport module). $language may be ID, language name or Language object. Field should be field name (string). #pw-group-languages
+ * @method Page setLanguageValues($field, array $values) Set value for field in one or more languages (requires LanguageSupport module). $field should be field/property name (string), $values should be array of values indexed by language name. @since 3.0.236 #pw-group-languages
+ * @method mixed getLanguageValue($language, $field) Get value for field in language (requires LanguageSupport module). $language may be ID, language name or Language object. Field should be field name (string). #pw-group-languages
+ * @method array getLanguageValues($field, array $langs = []) Get values for field or one or more languages (requires LanguageSupport module). $field should be field/property name (string), $langs should be array of language names, or omit for all languages. Returns array of values indexed by language name. @since 3.0.236 #pw-group-languages
  * 
  * Methods added by LanguageSupportPageNames.module (not installed by default)
  * ---------------------------------------------------------------------------
@@ -147,6 +150,10 @@
  * @method string localPath($language = null) Return the page path in the current user's language, or specify $language argument (Language object, name, or ID). #pw-group-languages #pw-group-urls
  * @method string localUrl($language = null) Return the page URL in the current user's language, or specify $language argument (Language object, name, or ID). #pw-group-languages #pw-group-urls
  * @method string localHttpUrl($language = null) Return the page URL (including scheme and hostname) in the current user's language, or specify $language argument (Language object, name, or ID). #pw-group-languages #pw-group-urls
+ * @method Page setLanguageStatus($language, $status = null) Set active status for language(s), can be called as `$page->setLanguageStatus('es', true);` or `$page->setLanguageStatus([ 'es' => true, 'br' => false ]);` to set multiple. @since 3.0.236 #pw-group-languages 
+ * @method array|bool getLanguageStatus($language = []) Get active status for language(s). If given a $language (Language or name of language) it returns a boolean. If given multiple language names (array), or argument omitted, it returns array like `[ 'default' => true, 'fr' => false ];`. @since 3.0.236 #pw-group-languages 
+ * @method Page setLanguageName($language, $name = null) Set page name for language with `$page->setLanguageName('es', 'hola');` or set multiple with `$page->setLanguageName([ 'default' => 'hello', 'es' => 'hola' ]);` @since 3.0.236 #pw-group-languages 
+ * @method array|string getLanguageName($language = []) Get page name for language(s). If given a Language object, it returns a string. If given array of language names, or argument omitted, it returns an array like `[ 'default' => 'hello', 'es' => 'hola' ];`. @since 3.0.236 #pw-group-languages 
  *
  * Methods added by PageFrontEdit.module (not always installed by default)
  * -----------------------------------------------------------------------
@@ -154,7 +161,7 @@
  * 
  * Methods added by ProDrafts.module (if installed)
  * ------------------------------------------------
- * @method ProDraft|\ProDraft|int|string|Page|array draft($key = null, $value = null) Helper method for drafts (added by ProDrafts). #pw-advanced
+ * @method ProDraft|int|string|Page|array draft($key = null, $value = null) Helper method for drafts (added by ProDrafts). #pw-advanced
  * 
  * Hookable methods
  * ----------------
@@ -377,7 +384,15 @@ class Page extends WireData implements \Countable, WireMatchable {
 	 * @var string
 	 *
 	 */
-	private $namePrevious; 
+	private $namePrevious;
+
+	/**
+	 * The previous sort value used by page, if changed during runtime.
+	 * 
+	 * @var int
+	 * 
+	 */
+	private $sortPrevious;
 
 	/**
 	 * The previous status used by this page, if it changed during runtime.
@@ -601,6 +616,7 @@ class Page extends WireData implements \Countable, WireMatchable {
 		$this->parentPrevious = null;
 		$this->templatePrevious = null;
 		$this->statusPrevious = null;
+		$this->sortPrevious = null;
 	}
 
 	/**
@@ -700,7 +716,8 @@ class Page extends WireData implements \Countable, WireMatchable {
 				$this->setStatus($value); 
 				break;
 			case 'statusPrevious':
-				$this->statusPrevious = is_null($value) ? null : (int) $value; 
+			case 'sortPrevious':	
+				$this->$key = is_null($value) ? null : (int) $value; 
 				break;
 			case 'name':
 				$this->setName($value);
@@ -4040,6 +4057,8 @@ class Page extends WireData implements \Countable, WireMatchable {
 				$this->namePrevious = $old;
 			} else if($what === 'status' && $old !== null) {
 				$this->statusPrevious = (int) $old;
+			} else if($what === 'sort' && $old !== null && $this->sortPrevious === null) {
+				$this->sortPrevious = (int) $old;
 			}
 		}
 		return parent::trackChange($what, $old, $new);

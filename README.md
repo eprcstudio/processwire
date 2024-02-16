@@ -15,6 +15,7 @@ Assuming you are part of the team, follow the instructions described [here](http
 Solution from https://stackoverflow.com/a/25749155, assuming you have added a remote named `upstream`.
 
 ```
+git fetch upstream
 git checkout upstream/dev wire/
 git commit -am "Update /wire to latest dev version"
 git pull --rebase

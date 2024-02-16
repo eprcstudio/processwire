@@ -76,7 +76,17 @@ class WireHttp extends Wire {
 	 * HTTP methods we are allowed to use
 	 *
 	 */
-	protected $allowHttpMethods = array('GET', 'POST', 'PUT', 'DELETE', 'HEAD', 'PATCH'); 
+	protected $allowHttpMethods = array(
+		'GET', 
+		'POST', 
+		'PUT', 
+		'DELETE', 
+		'HEAD', 
+		'PATCH', 
+		'OPTIONS',
+		'TRACE',
+		'CONNECT'
+	); 
 
 	/**
 	 * Headers to include in the request
@@ -2088,6 +2098,8 @@ class WireHttp extends Wire {
 
 	/**
 	 * Set the number of seconds till connection times out 
+	 * 
+	 * Note that the default timeout for http requests is 4.5 seconds
 	 * 
 	 * #pw-group-settings
 	 * 

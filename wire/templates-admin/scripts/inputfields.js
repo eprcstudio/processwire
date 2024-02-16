@@ -1099,11 +1099,22 @@ function InputfieldDependencies($target) {
 	 * @param operator
 	 * @param value value to match for
 	 * @param conditionValue
+	 * @param $inputfield 
 	 * @return int 0=value didn't match, 1=value matched
 	 *
 	 */
-	function matchValue(field, operator, value, conditionValue) {
+	function matchValue(field, operator, value, conditionValue, $inputfield) {
 		var matched = 0;
+	
+		if(operator === '=' || operator === '!=') {
+			if($inputfield.attr('class').indexOf('InputfieldPage') > -1) {
+				// InputfieldPage, InputfieldPageListSelect, InputfieldPageAutocomplete, etc.
+				// normalizing matching of empty for blank, '', "", 0, etc.
+				// since there is no page ID=0 so all empty values can match each other
+				var v = trimValue(value.toString() + conditionValue.toString());
+				if(v === '0' || v === '') value = conditionValue = '';
+			}
+		}
 
 		switch(operator) {
 			case '=': if(value === conditionValue) matched++; break;
@@ -1140,6 +1151,10 @@ function InputfieldDependencies($target) {
 
 		consoleLog('getCheckboxFieldAndValue(see-next-line, ' + conditionField + ', ' + conditionSubfield + ')');
 		consoleLog(condition)
+
+		if(conditionSubfield === '' && trimValue(condition.value) === '') {
+			conditionSubfield = 'count';
+		}
 
 		// first check if we've got a count subfield, because we'll be counting checked inputs for 
 		// those rather than checking the actual values
@@ -1344,7 +1359,8 @@ function InputfieldDependencies($target) {
 				} else if(typeof value == 'array') {
 					// array, already
 					values = value;
-				} else if(typeof value == "string" && $inputfield.hasClass('InputfieldPage') && value.indexOf(',') > -1 && value.match(/^[,0-9]+$/)) {
+				} else if(typeof value == "string" && $inputfield.attr('class').indexOf('InputfieldPage') > -1 
+					&& value.indexOf(',') > -1 && value.match(/^[,0-9]+$/)) {
 					// CSV string of page IDs
 					values = value.split(',');
 				} else {
@@ -1369,7 +1385,7 @@ function InputfieldDependencies($target) {
 				for (var n = 0; n < values.length; n++) {
 					for (var i = 0; i < condition.values.length; i++) {
 						var v = parseValue(values[n], condition.values[i]);
-						matched += matchValue(conditionField, condition.operator, v, condition.values[i]);
+						matched += matchValue(conditionField, condition.operator, v, condition.values[i], $inputfield);
 					}
 				}
 
@@ -1492,6 +1508,11 @@ function InputfieldDependencies($target) {
 			var subfield = '';
 			var fields = []; // if multiple
 			var values = [];
+	
+			// For repeaters PR #255
+			if(field.indexOf('forpage.') === 0) {
+				field = field.replace('forpage.', '').replace(/\_repeater\d+/g, '');
+			}
 
 			// detect OR selector in field
 			if(field.indexOf("|") > -1) {
