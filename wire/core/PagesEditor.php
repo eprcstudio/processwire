@@ -27,7 +27,7 @@ class PagesEditor extends Wire {
 	 * 
 	 */
 	protected $pages;
-
+	
 	/**
 	 * Construct
 	 * 
@@ -984,7 +984,7 @@ class PagesEditor extends Wire {
 	 * 
 	 */
 	public function saveStatus(Page $page) {
-		return $this->savePageStatus($page, $page->status) > 0;
+		return $this->savePageStatus($page, $page->status, false, 2) > 0;
 	}
 
 	/**
@@ -1098,7 +1098,7 @@ class PagesEditor extends Wire {
 	}
 	
 	/**
-	 * Permanently delete a page and it's fields.
+	 * Permanently delete a page and its fields.
 	 *
 	 * Unlike trash(), pages deleted here are not restorable.
 	 *
@@ -1121,19 +1121,35 @@ class PagesEditor extends Wire {
 			'uncacheAll' => false, 
 			'recursive' => is_bool($recursive) ? $recursive : false,
 			// internal use properties:
-			'_level' => 0,
+			// internal recursion level: incremented only by delete operations initiated by this method
+			'_level' => 0, 
+			// internal delete branch: Page object when deleting a branch
 			'_deleteBranch' => false,
 		);
+
+		// page IDs for all delete operations, cleared out once no longer recursive
+		static $deleted = array(); 
+		
+		// external recursion level: all recursive delete operations including those initiated from hooks
+		static $level = 0; 
 
 		if(is_array($recursive)) $options = $recursive; 	
 		$options = array_merge($defaults, $options);
 
+		// check if page already deleted in a recursive call 
+		if(isset($deleted[$page->id])) {
+			// page already deleted, return result from that call
+			return $options['recursive'] ? $deleted[$page->id] : true;
+		}
+
 		$this->isDeleteable($page, true); // throws WireException
+		
 		$numDeleted = 0;
 		$numChildren = $page->numChildren;
 		$deleteBranch = false;
+		$level++;
 
-		if($numChildren) {
+		if($numChildren) try {
 			if(!$options['recursive']) {
 				throw new WireException("Can't delete Page $page because it has one or more children.");
 			}
@@ -1144,17 +1160,21 @@ class PagesEditor extends Wire {
 			}
 			foreach($page->children('include=all') as $child) {
 				/** @var Page $child */
+				if(isset($deleted[$child->id])) continue;
 				$options['_level']++;
 				$result = $this->pages->delete($child, true, $options);
 				$options['_level']--;
 				if(!$result) throw new WireException("Error doing recursive page delete, stopped by page $child");
 				$numDeleted += $result;
 			}
+		} catch(\Exception $e) {
+			$level = 0;
+			$deleted = array();
+			throw $e;
 		}
 
 		// trigger a hook to indicate delete is ready and WILL occur
 		$this->pages->deleteReady($page, $options);
-
 		$this->clear($page);
 		
 		$database = $this->wire()->database;
@@ -1165,10 +1185,20 @@ class PagesEditor extends Wire {
 		$this->pages->sortfields()->delete($page);
 		$page->setTrackChanges(false);
 		$page->status = Page::statusDeleted; // no need for bitwise addition here, as this page is no longer relevant
-		$this->pages->deleted($page, $options);
 		$numDeleted++;
+		$deleted[$page->id] = $numDeleted;
+		$this->pages->deleted($page, $options);
+		
 		if($deleteBranch) $this->pages->deletedBranch($page, $options, $numDeleted);
 		if($options['uncacheAll']) $this->pages->uncacheAll($page);
+		
+		if($level > 0) $level--;
+		if($level < 1) {
+			// back at root call, reset all tracking
+			$deleted = array();
+			$level = 0;
+		}
+		
 		$this->pages->debugLog('delete', $page, true);
 
 		return $options['recursive'] ? $numDeleted : true;

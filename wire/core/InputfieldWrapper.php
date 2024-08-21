@@ -3,7 +3,7 @@
 /**
  * ProcessWire InputfieldWrapper
  *
- * ProcessWire 3.x, Copyright 2022 by Ryan Cramer
+ * ProcessWire 3.x, Copyright 2024 by Ryan Cramer
  * https://processwire.com
  *
  * About InputfieldWrapper
@@ -402,6 +402,8 @@ class InputfieldWrapper extends Inputfield implements \Countable, \IteratorAggre
 	/**
 	 * Insert new or existing Inputfield before or after another
 	 * 
+	 * #pw-group-manipulation
+	 * 
 	 * @param Inputfield|array|string $item New or existing item Inputfield, name, or new item array to insert.
 	 * @param Inputfield|string $existingItem Existing item or item name you want to insert before.
 	 * @param bool $before True to insert before, false to insert after (default=false).
@@ -721,6 +723,7 @@ class InputfieldWrapper extends Inputfield implements \Countable, \IteratorAggre
 		$classes = array();
 		$useColumnWidth = $this->useColumnWidth;
 		$renderAjaxInputfield = $this->wire()->config->ajax ? $this->wire()->input->get('renderInputfieldAjax') : null;
+		$toggleLabel = $sanitizer->entities1($this->_('Toggle open/close'));
 		
 		$lockedStates = array(
 			Inputfield::collapsedNoLocked, 
@@ -883,25 +886,23 @@ class InputfieldWrapper extends Inputfield implements \Countable, \IteratorAggre
 				$icon = $icon ? str_replace('{name}', $sanitizer->name(str_replace(array('icon-', 'fa-'), '', $icon)), $markup['item_icon']) : ''; 
 				$toggle = $collapsed == Inputfield::collapsedNever ? '' : $markup['item_toggle']; 
 				if($toggle && strpos($toggle, 'title=') === false) {
-					$toggle = str_replace("class=", "title='" . $this->_('Toggle open/close') . "' class=", $toggle);
+					$toggle = str_replace("class=", "title='$toggleLabel' class=", $toggle);
+				}
+				$headerActions = $inputfield->addHeaderAction();
+				if(count($headerActions)) {
+					$label .= $this->renderHeaderActions($inputfield, $headerActions);
 				}
 				if($skipLabel === Inputfield::skipLabelHeader || $quietMode) {
 					// label only shows when field is collapsed
 					$label = str_replace('{out}', $icon . $label . $toggle, $markup['item_label_hidden']); 
 				} else {
 					// label always visible
-					$label = str_replace(array('{for}', '{out}'), array($for, $icon . $label . $toggle), $markup['item_label']); 
+					$label = str_replace('{out}', $icon . $label . $toggle, $markup['item_label']);
+					$label = $this->setAttributeInMarkup('for', $for, $label, true);
 				}
 				$headerClass = trim($inputfield->getSetting('headerClass') . " $classes[item_label]");
-				if($headerClass) {
-					if(strpos($label, '{class}') !== false) {
-						$label = str_replace('{class}', ' ' . $headerClass, $label); 
-					} else {
-						$label = preg_replace('/( class=[\'"][^\'"]+)/', '$1 ' . $headerClass, $label, 1);
-					}
-				} else if(strpos($label, '{class}') !== false) {
-					$label = str_replace('{class}', '', $label); 
-				}
+				$label = $this->setAttributeInMarkup('class', $headerClass, $label);
+				
 			} else if($skipLabel === Inputfield::skipLabelMarkup) {
 				// no header and no markup for header
 				$label = '';
@@ -960,16 +961,9 @@ class InputfieldWrapper extends Inputfield implements \Countable, \IteratorAggre
 			}
 			$markupItemContent = $markup['item_content'];
 			$contentClass = trim($inputfield->getSetting('contentClass') . " $classes[item_content]");
-			if($contentClass) {
-				if(strpos($markupItemContent, '{class}') !== false) {
-					$markupItemContent = str_replace('{class}', ' ' . $contentClass, $markupItemContent); 
-				} else {
-					$markupItemContent = preg_replace('/( class=[\'"][^\'"]+)/', '$1 ' . $contentClass, $markupItemContent, 1);
-				}
-			} else if(strpos($markupItemContent, '{class}') !== false) {
-				$markupItemContent = str_replace('{class}', '', $markupItemContent); 
-			}
-			if($inputfield->className() != 'InputfieldWrapper') $ffOut = str_replace('{out}', $ffOut, $markupItemContent); 
+			$markupItemContent = $this->setAttributeInMarkup('class', $contentClass, $markupItemContent);
+			if($inputfield->className() != 'InputfieldWrapper') $ffOut = str_replace('{out}', $ffOut, $markupItemContent);
+			$ffOut .= $inputfield->getSetting('footerMarkup');
 			$out .= str_replace(array('{attrs}', '{out}'), array(trim($attrs), $label . $ffOut), $markup['item']); 
 			$lastInputfield = $inputfield;
 		} // foreach($children as $inputfield)
@@ -990,6 +984,115 @@ class InputfieldWrapper extends Inputfield implements \Countable, \IteratorAggre
 		}
 
 		return $out; 
+	}
+
+	/**
+	 * Set attribute value in markup, optionall replacing a {placeholder} tag
+	 * 
+	 * When a placeholder is present in the given $markup, it should be the 
+	 * attribute name wrapped in `{}`, i.e. `{class}`
+	 * 
+	 * Note that class attributes are appended while other attributes are replaced.
+	 * 
+	 * @param string $name Attribute name (i.e. "class", "for", etc.)
+	 * @param string $value Value to set for the attribute
+	 * @param string $markup Markup where the attribute or placeholder exists
+	 * @param bool $removeEmpty Remove attribute if it resolves to empty value?
+	 * @return string Updated markup
+	 * @since 3.0.242
+	 * 
+	 */
+	protected function setAttributeInMarkup($name, $value, $markup, $removeEmpty = false) {
+		
+		$placeholder = '{' . $name . '}';
+		$hasPlaceholder = strpos($markup, $placeholder) !== false; 
+		
+		if(strlen("$value")) {
+			if($hasPlaceholder) {
+				// replace existing class="… with class="… value
+				$replacement = $name === 'class' ? " $value" : $value;
+				$markup = str_replace($placeholder, $replacement, $markup);
+				
+			} else if(strpos($markup, " $name=") !== false) {
+				// update existing attribute value without a {class} being present
+				// for class attribute it appends existing, for others it replaces
+				$replacement = $name === 'class' ? "$1 $value" : $value;
+				$markup = preg_replace('/(\s' . $name . '=[\'"][^\'"]*)/', $replacement, $markup, 1);
+				
+			} else {
+				// insert attribute where it doesn't currently exist
+				$markup = preg_replace('!(<[a-z0-9]+)(\s*)!i', "$1 $name='$value'$2", $markup, 1);
+			}
+			
+			// remove unnecessary whitespace in class attribute values
+			if($name === 'class') {
+				foreach(array(" $name=' ", " $name=\" ") as $find) {
+					while(strpos($markup, $find)) {
+						$markup = str_replace($find, rtrim($find), $markup);
+					}
+				}
+			}
+			
+		} else if($hasPlaceholder) {
+			if($removeEmpty) {
+				// remove name="{name}"
+				$markup = str_replace(array(" $name='{" . $name . "}'", " $name=\"{" . $name . "}\""), '', $markup);
+			} else {
+				// replace {name} with blank string
+				$markup = str_replace($placeholder, '', $markup);
+			}
+			
+		} else {
+			// $value is empty and there is no placeholder, leave $markup as-is
+		}
+		
+		return $markup;
+	}
+
+	/**
+	 * Render Inputfield header actions
+	 * 
+	 * @param Inputfield $inputfield
+	 * @param array $actions
+	 * @return string
+	 * @since 3.0.240
+	 * 
+	 */
+	protected function renderHeaderActions(Inputfield $inputfield, array $actions) {
+		$sanitizer = $this->wire()->sanitizer;
+		$out = '';
+		$modal = false;
+		foreach($actions as $a) {
+			$icon = '';
+			$type = '';
+			if(isset($a['icon'])) {
+				$icon = $a['icon'];
+				if(isset($a['href'])) {
+					$type = 'link';
+					if(!empty($a['modal'])) $modal = true;
+				} else {
+					$type = 'click';
+				}
+			} else if(isset($a['offIcon'])) {
+				$type = 'toggle';
+				if(!isset($a['onIcon'])) $a['onIcon'] = $a['offIcon'];
+			} else if(isset($a['onIcon'])) {
+				$type = 'toggle';
+				$a['offIcon'] = $a['onIcon']; 
+			}
+			if($type === 'toggle') $icon = $a['on'] ? $a['onIcon'] : $a['offIcon'];
+			if(empty($icon) || empty($type)) continue;
+			$a['type'] = $type;
+			if(strpos($icon, 'fa-') !== 0) $icon = "fa-$icon";
+			$data = $sanitizer->entities(json_encode($a));
+			$out .= "<i class='_InputfieldHeaderAction fa fa-fw $icon' data-action='$data' hidden></i>";
+		}
+		if($modal) {
+			/** @var JqueryUI $jQueryUI */
+			$jQueryUI = $this->wire()->modules->get('JqueryUI');
+			$jQueryUI->use('modal');
+		}
+		return $out;
 	}
 
 	/**
@@ -1132,7 +1235,22 @@ class InputfieldWrapper extends Inputfield implements \Countable, \IteratorAggre
 		$url .= "renderInputfieldAjax=$inputfieldID";
 		$url = $sanitizer->entities($url);
 		
-		$out = "<div class='renderInputfieldAjax'><input type='hidden' value='$url' /></div>";
+		$valueInput = '';
+		$val = $inputfield->val();
+		if(!is_array($val) && !is_object($val)) {
+			$val = (string) $val;
+			if(strlen("$val") <= 1024) {
+				// keep value in hidden input so dependences can refer to it
+				$val = $sanitizer->entities("$val");
+				$valueInput = "<input type='hidden' id='$inputfieldID' value='$val' />";
+			}
+		}
+
+		$out =
+			"<div class='renderInputfieldAjax'>" .
+				"<input type='hidden' value='$url' />" .
+				$valueInput .
+			"</div>";
 		
 		if($inputfield instanceof InputfieldWrapper) {
 			// load assets they will need
@@ -1564,6 +1682,64 @@ class InputfieldWrapper extends Inputfield implements \Countable, \IteratorAggre
 			if($inputfield) break;
 		}
 		return $inputfield;
+	}
+
+	/**
+	 * Get Inputfield by Field (hasField)
+	 * 
+	 * This is useful in cases where the input name may differ from the Field name
+	 * that it represents, and you only know the field name. Applies only to 
+	 * Inputfields connected with a Page and Field (i.e. used for page editing).
+	 * 
+	 * #pw-group-retrieval-and-traversal
+	 * 
+	 * @param Field|string|int $field
+	 * @return Inputfield|InputfieldWrapper|null
+	 * @since 3.0.239
+	 * 
+	 */
+	public function getByField($field) {
+		if(!$field instanceof Field) $field = $this->wire()->fields->get($field);
+		return $this->getByProperty('hasField', $field);
+	}
+
+	/**
+	 * Get Inputfield by some other non-attribute property or setting
+	 * 
+	 * #pw-group-retrieval-and-traversal
+	 * 
+	 * @param string $property
+	 * @param mixed $value
+	 * @param bool $getAll Get array of all matching Inputfields rather than just first? (default=false)
+	 * @return Inputfield|InputfieldWrapper|null|array
+	 * @since 3.0.239
+	 * 
+	 */
+	public function getByProperty($property, $value, $getAll = false) {
+		$inputfield = null;
+		$value = (string) $value;
+		$a = array();
+		
+		foreach($this->children() as $child) {
+			/** @var Inputfield $child */
+			if((string) $child->getSetting($property) === $value) {
+				$inputfield = $child;
+			} else if($child instanceof InputfieldWrapper) {
+				if($getAll) {
+					$a = array_merge($a, $child->getByProperty($property, $value, true));
+				} else {
+					$inputfield = $child->getByProperty($property, $value);
+				}
+			}
+			if($inputfield) {
+				if($getAll) {
+					$a[] = $inputfield;
+				} else {
+					break;
+				}
+			}
+		}
+		return $getAll ? $a : $inputfield;
 	}
 
 	/**

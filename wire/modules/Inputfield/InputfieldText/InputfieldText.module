@@ -166,7 +166,7 @@ class InputfieldText extends Inputfield {
 		if(!empty($attrs['placeholder']) && $this->wire()->languages) {
 			$language = $this->wire()->user->language;
 			if($language && $language->id && !$language->isDefault()) {
-				$placeholder = parent::get("placeholder$language->id"); 
+				$placeholder = (string) parent::get("placeholder$language->id"); 
 				if(strlen($placeholder)) $attrs['placeholder'] = $placeholder;
 			}
 		}
@@ -229,6 +229,7 @@ class InputfieldText extends Inputfield {
 	 * 
 	 */
 	protected function getValueLength($value, $countWords = false) {
+		$value = (string) $value;
 		if($countWords) {
 			return str_word_count($value); 
 		} else {
@@ -385,7 +386,7 @@ class InputfieldText extends Inputfield {
 
 		if($this->hasFieldtype === false) { 
 			/** @var InputfieldText $field */
-			$field = $modules->get('InputfieldText');
+			$field = $modules->get($this->className());
 			$field->setAttribute('name', 'initValue'); 
 			$field->label = $this->_('Initial Value');
 			$field->description = $this->_('Optional initial/default value pre-populated for the user.'); 

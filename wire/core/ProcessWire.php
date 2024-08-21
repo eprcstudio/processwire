@@ -17,7 +17,7 @@ require_once(__DIR__ . '/boot.php');
  * ~~~~~
  * #pw-body
  * 
- * ProcessWire 3.x, Copyright 2023 by Ryan Cramer
+ * ProcessWire 3.x, Copyright 2024 by Ryan Cramer
  * https://processwire.com
  *
  * Default API vars (A-Z) 
@@ -80,7 +80,7 @@ class ProcessWire extends Wire {
 	 * Reversion revision number
 	 * 
 	 */
-	const versionRevision = 235;
+	const versionRevision = 241;
 
 	/**
 	 * Version suffix string (when applicable)
@@ -601,7 +601,9 @@ class ProcessWire extends Wire {
 		// the current user can only be determined after the session has been initiated
 		$session = $this->wire('session', new Session($this), true); 
 		$this->initVar('session', $session);
-		$this->wire('user', $users->getCurrentUser());
+		$user = $users->getCurrentUser();
+		if($config->userOutputFormatting) $user->of(true);
+		$this->wire('user', $user);
 		
 		$input = $this->wire('input', new WireInput(), true); 
 		if($config->wireInputLazy) $input->setLazy(true);

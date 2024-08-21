@@ -524,6 +524,18 @@ $config->sessionHistory = 0;
 $config->userAuthHashType = 'sha1';
 
 /**
+ * Enable output formatting for current $user API variable at boot?
+ * 
+ * EXPERIMENTAL: May not be compatible with with all usages, so if setting to `true` 
+ * then be sure to test thoroughly on anything that works with $user API variable. 
+ * 
+ * @var bool
+ * @since 3.0.241
+ * 
+ */
+$config->userOutputFormatting = false;
+
+/**
  * Names (string) or IDs (int) of roles that are not allowed to login
  *
  * Note that you must create these roles yourself in the admin. When a user has
@@ -1405,8 +1417,8 @@ $config->moduleServiceKey = 'pw301';
  */
 $config->moduleInstall = array(
 	'directory' => 'debug', // allow install from ProcessWire modules directory? 
-	'upload' => 'debug', // allow install by module file upload?
-	'download' => 'debug', // allow install by download from URL?
+	'upload' => false, // allow install by module file upload?
+	'download' => false, // allow install by download from URL?
 );
 
 /**

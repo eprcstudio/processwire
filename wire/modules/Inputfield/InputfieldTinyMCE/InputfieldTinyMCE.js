@@ -115,6 +115,7 @@ var InputfieldTinyMCE = {
 	 * 
  	 */	
 	cls: {
+		main: 'InputfieldTinyMCE',
 		lazy: 'InputfieldTinyMCELazy',
 		inline: 'InputfieldTinyMCEInline',
 		normal: 'InputfieldTinyMCENormal',
@@ -609,19 +610,6 @@ var InputfieldTinyMCE = {
 		
 		allow = allow.toLowerCase();
 		
-		/*
-		 * HTML for testing MS word paste	
-		msWordHtml = 
-			"<p className=MsoNormal>This is <b>bold</b> text. <o:p></o:p></p>\n\n" + 
-			"<h2>This is headline 2. <o:p></o:p></h2>\n\n" + 
-			"<p className=MsoNormal>This is <I>italic</I> text<o:p></o:p></p>\n\n" + 
-			"<p className=MsoListParagraphCxSpFirst style='text-indent:-.25in;mso-list:10 level1 lfo1'>" + 
-			"<![if !supportsLists]><span style='iso-bidi-font-family:Aptos;mso-bidi-theme-font:minor-latin'>" + 
-			"<span style='so-list:Ignore'>1.<span style='font:7.0pt \"Times New Roman\"'>" +
-			"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span></span></span><![endif]>One <o:p></o:p></p>";
-		html = msWordHtml;
-		*/
-		
 		startLength = html.length;
 		
 		if(args.internal) {
@@ -728,6 +716,7 @@ var InputfieldTinyMCE = {
 		while(html.indexOf('&nbsp;') > -1) html = html.replace('&nbsp;', ' ', html);
 		
 		html = html.replaceAll(/<([-a-z0-9]+)[^>]*>\s*<\/\1>/ig, ''); // remove empty tags
+		html = html.replaceAll(/<\/p>\s*<br[/ ]*>/ig, '</p>'); // replace </p><br> with </p>
 		
 		t.log('Completed pasteFilter ' + startLength + ' => ' + html.length + ' bytes'); 
 		
@@ -806,6 +795,30 @@ var InputfieldTinyMCE = {
 				if($placeholders.length) t.initPlaceholders($placeholders);
 				if($editors.length) t.initEditors($editors);
 				 */
+			})
+			.on('saved', '.' + t.cls.main, function(e) {
+				// saved event like when triggered by LRP
+				var $t = $(this);
+				var $editors = $t.hasClass(t.cls.loaded) ? $t : $t.find('.' + t.cls.loaded);
+				if($editors.length) t.destroyEditors($editors);
+			})
+			.on('saveReady', '.' + t.cls.main, function(e) {
+				// saveReady event, such as from LRP
+				// manually dump current value to input to ensure it gets saved
+				var $editors = $(this).find('.' + t.cls.loaded);
+				$editors.each(function() {
+					var $editor = $(this);
+					if($editor.hasClass(t.cls.inline)) {
+						// inline editor, map name property to separate input[name] with Inputfield_ prefix
+						var name = 'Inputfield_' + $(this).attr('name');
+						var $input = $editor.next('input[name=' + name + ']'); 
+						$input.val($editor.html());
+					} else {
+						// regular editor
+						var editor = tinymce.get($(this).attr('id'));
+						$(this).val(editor.getContent()); 
+					}
+				}); 
 			});
 		
 		/*

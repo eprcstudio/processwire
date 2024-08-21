@@ -995,7 +995,7 @@ class ProcessPageLister extends Process implements ConfigurableModule {
 			// limit is specified in both the selector and the arguments. 
 			// we don't allow specifying limit in selector if one is specified in the arguments
 			$selector = preg_replace('/[, ]*\blimit=\d+/i', '', $selector); 
-			if($limit > 0) $selector .= ", limit=" . (int) $limit; 
+			if($limit > -1) $selector .= ", limit=" . (int) $limit; 
 		}
 
 		if(stripos($selector, 'sort=') !== false) {
@@ -1147,14 +1147,18 @@ class ProcessPageLister extends Process implements ConfigurableModule {
 			if(count($templates)) {
 				// user specified 1 or more templates
 				$numEditable = 0;
+				$testPage = $pages->newPage();
+				$testPage->id = 999; // required (any ID number works)
+				if($this->wire()->permissions->has('page-publish')) {
+					$testPage->addStatus(Page::statusUnpublished);
+				}
 				// determine how many templates are editable
 				if(count($parents)) {
 					foreach($templates as $template) {
-						$test = $pages->newPage($template);
-						$test->id = 999; // required (any ID number works)
+						$testPage->template = $template;
 						foreach($parents as $parent) {
-							$test->parent = $parent;
-							if($test->editable()) {
+							$testPage->parent = $parent;
+							if($testPage->editable()) {
 								$numEditable++;
 								break;
 							}
@@ -1162,9 +1166,8 @@ class ProcessPageLister extends Process implements ConfigurableModule {
 					}
 				} else {
 					foreach($templates as $template) {
-						$test = $pages->newPage($template);
-						$test->id = 999; // required (any ID number works)
-						if($test->editable()) $numEditable++;
+						$testPage->template = $template;
+						if($testPage->editable()) $numEditable++;
 					}
 				}
 				// if all specified templates are editable, include=unpublished is allowed
@@ -1266,6 +1269,9 @@ class ProcessPageLister extends Process implements ConfigurableModule {
 		if(isset($selectorInfo['input']) && $selectorInfo['input'] === 'page') {
 			if(isset($selectorInfo['subfields'][$subfield])) return true;
 			if($this->wire()->pages->loader()->isNativeColumn($subfield)) return true;
+		} else if(!empty($selectorInfo['subfields'][$subfield]['col'])) {
+			// selector info indicates specific DB col that is different from 'name'
+			return true;
 		}
 		return false;
 	}
@@ -1304,6 +1310,7 @@ class ProcessPageLister extends Process implements ConfigurableModule {
 		$systemLabels = $this->getSystemLabels();
 		$tableFields = array();
 		$header = array();
+		$useLabels = $this->useColumnLabels;
 		
 		/** @var MarkupAdminDataTable $table */
 		$table = $modules->get('MarkupAdminDataTable');
@@ -1332,25 +1339,30 @@ class ProcessPageLister extends Process implements ConfigurableModule {
 			$sep1 = '~~';
 			$sep2 = '&nbsp;&gt; ';
 			$label = str_replace($sep1, ' ', $label);
-			
+		
 			if($subname) {
-				$subfield = $fields->get($subname);
-
-				if($subfield) {
-					$sublabel = $subfield->getLabel();
-					$sublabel = str_replace($sep1, ' ', $sublabel);
+				$sublabel = '';
+				if($field && $useLabels) {
+					$subinfo = $field->type->getSelectorInfo($field);
+					if(!empty($subinfo['subfields'][$subname]['label'])) {
+						$sublabel = $subinfo['subfields'][$subname]['label'];
+					}
+				}
+				if(!$sublabel) {
+					$subfield = $fields->get($subname);
+					if($subfield) {
+						$sublabel = $subfield->getLabel();
+						$sublabel = str_replace($sep1, ' ', $sublabel);
+						if(!$sublabel) $sublabel = $subname;
+						$subicon = $subfield->getIcon(true);
+						if($subicon) $icon = $subicon;
+					}
 					if(!$sublabel) $sublabel = $subname;
-					$label .= $sep1 . $sublabel;
-					$subicon = $subfield->getIcon(true);
-					if($subicon) $icon = $subicon;
-				} else {
-					$label .= $sep1 . $subname;
 				}
-
-				if($language) {
-					$label = $this->addLanguageLabel($label, $language);
-				}
-			} else if($language) {
+				$label .= $sep1 . $sublabel;
+			}
+			
+			if($language) {
 				$label = $this->addLanguageLabel($label, $language);
 			}
 			
@@ -1447,7 +1459,6 @@ class ProcessPageLister extends Process implements ConfigurableModule {
 		$subname = '';
 		$fullname = $name; 
 		$value = null;
-		$noEntities = false;
 		$language = $languages ? $this->identifyLanguage($name, true) : null;
 	
 		if($language && $language->id == $this->wire()->user->language->id) $language = null;
@@ -1567,7 +1578,7 @@ class ProcessPageLister extends Process implements ConfigurableModule {
 				} else if($v instanceof Pagefile) {
 					/** @var Pageimage $v */
 					$v = "<a target='_blank' href='$v->url'>$v->basename</a>";
-				} else if(!$noEntities) {
+				} else {
 					$v = $sanitizer->entities($v); 
 				}
 				$values[] = (string) $v;
@@ -1610,7 +1621,7 @@ class ProcessPageLister extends Process implements ConfigurableModule {
 			$value = $t->getLabel();
 			// include template name only if it differs from template label
 			if($allowName && strtolower($t->name) != strtolower($value)) $value .= " ($t->name)";
-			if(!$noEntities) $value = $sanitizer->entities1($value);
+			$value = $sanitizer->entities1($value);
 
 		} else if($field && $field->type) {
 			if($subname == 'data') $subname = '';
@@ -1622,7 +1633,7 @@ class ProcessPageLister extends Process implements ConfigurableModule {
 			// other or unknown
 			if($subname == 'data') $value = (string) $value;
 			if($subname && is_object($value)) $value = $value->$subname;
-			$value = $noEntities ? $value : $sanitizer->entities($value); 
+			$value = $sanitizer->entities($value); 
 		}
 	
 		if($isFirstCol) $value = $this->buildListerTableColActions($p, $value);
@@ -2209,6 +2220,9 @@ class ProcessPageLister extends Process implements ConfigurableModule {
 		
 		if($this->parent && $this->parent->id && $this->parent->addable()) {
 			$action = "?parent_id={$this->parent->id}";
+
+		} else if($this->template && $this->template->noShortcut) {
+			// not allowed in add-new list
 
 		} else if($this->template && ($parent = $this->template->getParentPage(true))) {
 			if($parent->id) {

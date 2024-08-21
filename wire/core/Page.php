@@ -8,7 +8,7 @@
  * 1. Providing get/set access to the Page's properties
  * 2. Accessing the related hierarchy of pages (i.e. parents, children, sibling pages)
  * 
- * ProcessWire 3.x, Copyright 2022 by Ryan Cramer
+ * ProcessWire 3.x, Copyright 2024 by Ryan Cramer
  * https://processwire.com
  * 
  * #pw-summary Class used by all Page objects in ProcessWire.
@@ -120,6 +120,7 @@
  * @method bool addable($pageToAdd = null) Returns true if the current user can add children to the page, false if not. Optionally specify the page to be added for additional access checking. #pw-group-access
  * @method bool moveable($newParent = null) Returns true if the current user can move this page. Optionally specify the new parent to check if the page is moveable to that parent. #pw-group-access
  * @method bool sortable() Returns true if the current user can change the sort order of the current page (within the same parent). #pw-group-access
+ * @method bool cloneable($recursive = null) Can current user clone this page? Specify false for $recursive argument to ignore whether children are cloneable. @since 3.0.239 #pw-group-access
  * @property bool $viewable #pw-group-access
  * @property bool $editable #pw-group-access
  * @property bool $publishable #pw-group-access
@@ -130,6 +131,7 @@
  * @property bool $moveable #pw-group-access
  * @property bool $sortable #pw-group-access
  * @property bool $listable #pw-group-access
+ * @property bool $cloneable @since 3.0.239 #pw-group-access 
  * 
  * Methods added by PagePathHistory.module (installed by default)
  * --------------------------------------------------------------
@@ -1836,6 +1838,8 @@ class Page extends WireData implements \Countable, WireMatchable {
 	 * - When a string or array, a selector is assumed and quantity will be counted based on selector.
 	 * - When boolean true, number includes only visible children (excludes unpublished, hidden, no-access, etc.)
 	 * - When boolean false, number includes all children without conditions, including unpublished, hidden, no-access, etc.
+	 * - When integer 1 number includes “viewable” children (as opposed to “visible” children, viewable children includes 
+	 *   hidden pages and also includes unpublished pages if user has page-edit permission).
 	 * @return int Number of children
 	 * @see Page::hasChildren(), Page::children(), Page::child()
 	 *
@@ -2423,6 +2427,7 @@ class Page extends WireData implements \Countable, WireMatchable {
 		if($of) $this->of(false);
 		foreach($values as $k => $v) {
 			$this->set($k, $v);
+			if(!$property) $this->trackChange($k);
 		}
 		if($property) {
 			$result = $this->save($property, $options);
@@ -2860,6 +2865,7 @@ class Page extends WireData implements \Countable, WireMatchable {
 	 *  - `http` (bool): True to force scheme and hostname in URL (default=auto detect).
 	 *  - `language` (Language|bool): Optionally specify Language to start editor in, or boolean true to force current user language.
 	 *  - `find` (string): Name of field to find in the editor (3.0.151+)
+	 *  - `vars` (array): Additional variables to include in query string (3.0.239+)
 	 * @return string URL for editing this page
 	 * 
 	 */
@@ -3017,6 +3023,23 @@ class Page extends WireData implements \Countable, WireMatchable {
 	 *
 	 */
 	public function getInputfields($fieldName = '') {
+		if($this->wire()->hooks->isMethodHooked($this, 'getInputfields')) {
+			return $this->__call('getInputfields', array($fieldName));
+		} else {
+			return $this->___getInputfields($fieldName);
+		}
+	}
+
+	/**
+	 * Hookable version of getInputfields() method. 
+	 * 
+	 * See the getInputfields() method above for documentation details. 
+	 * 
+	 * @param string|array $fieldName
+	 * @return null|InputfieldWrapper Returns an InputfieldWrapper array of Inputfield objects, or NULL on failure.
+	 * 
+	 */
+	protected function ___getInputfields($fieldName = '') {
 		return $this->values()->getInputfields($this, $fieldName);
 	}
 
