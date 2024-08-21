@@ -93,13 +93,14 @@ ErrorDocument 404 /404.html
 <IfModule mod_headers.c>
   # prevent site from being loaded in an iframe on another site
   # you will need to remove this one if you want to allow external iframes
-  Header always append X-Frame-Options SAMEORIGIN 
+  Header always append X-Frame-Options SAMEORIGIN
+  Header set Content-Security-Policy "frame-ancestors 'self' eprc.studio;"
 
   # To prevent cross site scripting (IE8+ proprietary)
   Header set X-XSS-Protection "1; mode=block"
 
   # Optionally (O) prevent mime-based attacks via content sniffing (IE+Chrome)
-  # Header set X-Content-Type-Options "nosniff" 
+  Header set X-Content-Type-Options "nosniff"
 </IfModule>
 
 
