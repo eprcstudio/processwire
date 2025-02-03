@@ -1305,7 +1305,7 @@ var Inputfields = {
 			tooltip = settings.tooltip;
 		}
 	
-		if(tooltip.length) $icon.attr('title', tooltip);
+		if(tooltip.length) $icon.attr('title', tooltip).attr('uk-tooltip', tooltip);
 		
 		$icon.on('click', function() {
 			if(actionType === 'link') {
@@ -1330,7 +1330,7 @@ var Inputfields = {
 				}
 			} else {
 				if(settings.callback) settings.callback($icon);
-				if(settings.event) settings.trigger(settings.event, [ $icon ]);
+				if(settings.event) $icon.trigger(settings.event, [ $icon ]);
 			}
 			return false;
 		});
@@ -1892,8 +1892,20 @@ function InputfieldDependencies($target) {
 
 				// special case for 'count' subfield condition, 
 				// where we take the value's length rather than the value
-				if (condition.subfield == 'count') value = value.length;
-
+				if(condition.subfield == 'count') value = value.length;
+			
+				// match custom data attributes (for some types of inputs) when requested to
+				if(condition.subfield.indexOf('data-') === 0) {
+					if($field.is('select') && !$field.prop('multiple')) {
+						var v = $field.find('option[value="' + $field.val() + '"]').attr(condition.subfield);
+					} else if($inputfield.hasClass('InputfieldCheckboxes') || $inputfield.hasClass('InputfieldRadios')) {
+						// @todo
+					} else {
+						var v = $field.attr(condition.subfield);
+					}
+					if(typeof v !== 'undefined' && v !== null) value = v; 
+				}
+				
 				// if value is an object, make it in array
 				// in either case, convert value to an array called values
 				if (typeof value == 'object') {
@@ -2043,7 +2055,7 @@ function InputfieldDependencies($target) {
 
 			// separate out the field, operator and value
 			var part = parts[n];
-			var match = part.match(/^[,\s]*([_.|a-zA-Z0-9]+)(=|!=|<=|>=|<|>|%=)([^,]+),?$/);
+			var match = part.match(/^[,\s]*([-_.|a-zA-Z0-9]+)(=|!=|<=|>=|<|>|%=)([^,]+),?$/);
 			if(!match) continue;
 			var field = match[1];
 			var operator = match[2];
@@ -2653,7 +2665,7 @@ function InputfieldStates($target) {
 		var config = ProcessWire.config;
 	} 
 	if(typeof config !== "undefined" && config.debug) {
-		$('.InputfieldHeader > i.toggle-icon', $target).on('mouseenter', function() {
+		$('.InputfieldHeader > i.toggle-icon:not(.toggle-icon-debug)', $target).on('mouseenter', function() {
 			var $label = $(this).parent('label');
 			if($label.length == 0) return;
 			var forId = $label.attr('for');
@@ -2670,7 +2682,7 @@ function InputfieldStates($target) {
 			var $label = $(this).parent('label');
 			if($label.length == 0) return;
 			$label.find('.InputfieldNameTip').remove();
-		});
+		}).addClass('toggle-icon-debug');
 	}
 
 	// no need to apply anything further for ajax-loaded inputfields

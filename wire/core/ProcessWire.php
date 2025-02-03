@@ -17,7 +17,7 @@ require_once(__DIR__ . '/boot.php');
  * ~~~~~
  * #pw-body
  * 
- * ProcessWire 3.x, Copyright 2024 by Ryan Cramer
+ * ProcessWire 3.x, Copyright 2025 by Ryan Cramer
  * https://processwire.com
  *
  * Default API vars (A-Z) 
@@ -80,7 +80,7 @@ class ProcessWire extends Wire {
 	 * Reversion revision number
 	 * 
 	 */
-	const versionRevision = 241;
+	const versionRevision = 245;
 
 	/**
 	 * Version suffix string (when applicable)
@@ -288,7 +288,7 @@ class ProcessWire extends Wire {
 		
 		// this is reset in the $this->setConfig() method based on current debug mode
 		ini_set('display_errors', true);
-		error_reporting(E_ALL | E_STRICT);
+		error_reporting(E_ALL);
 
 		$config->setWire($this);
 		
@@ -449,7 +449,7 @@ class ProcessWire extends Wire {
 		
 		if($debug) {
 			// If debug mode is on then echo all errors
-			error_reporting(E_ALL | E_STRICT);
+			error_reporting(E_ALL);
 			ini_set('display_errors', 1);
 		} else {
 			// disable all error reporting

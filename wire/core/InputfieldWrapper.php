@@ -898,7 +898,7 @@ class InputfieldWrapper extends Inputfield implements \Countable, \IteratorAggre
 				} else {
 					// label always visible
 					$label = str_replace('{out}', $icon . $label . $toggle, $markup['item_label']);
-					$label = $this->setAttributeInMarkup('for', $for, $label, true);
+					if($skipLabel !== Inputfield::skipLabelFor) $label = $this->setAttributeInMarkup('for', $for, $label, true);
 				}
 				$headerClass = trim($inputfield->getSetting('headerClass') . " $classes[item_label]");
 				$label = $this->setAttributeInMarkup('class', $headerClass, $label);
@@ -987,7 +987,7 @@ class InputfieldWrapper extends Inputfield implements \Countable, \IteratorAggre
 	}
 
 	/**
-	 * Set attribute value in markup, optionall replacing a {placeholder} tag
+	 * Set attribute value in markup, optionally replacing a {placeholder} tag
 	 * 
 	 * When a placeholder is present in the given $markup, it should be the 
 	 * attribute name wrapped in `{}`, i.e. `{class}`
@@ -1860,12 +1860,17 @@ class InputfieldWrapper extends Inputfield implements \Countable, \IteratorAggre
 		/** @var InputfieldSelect $f */
 		$f = $inputfields->getChildByName('collapsed');
 		if($f) {
-			// remove all options for 'collapsed' except for a few
+			// whitelist of collapsed options allowed for fieldsets/wrappers
 			$allow = array(
 				Inputfield::collapsedNo, 
 				Inputfield::collapsedYes, 
 				Inputfield::collapsedYesAjax,
 				Inputfield::collapsedNever,
+				Inputfield::collapsedHidden,
+				Inputfield::collapsedBlank,
+				Inputfield::collapsedPopulated,
+				Inputfield::collapsedBlankAjax,
+				Inputfield::collapsedBlankLocked,
 			);
 			foreach($f->getOptions() as $value => $label) {
 				if(!in_array($value, $allow)) $f->removeOption($value);
@@ -1973,11 +1978,11 @@ class InputfieldWrapper extends Inputfield implements \Countable, \IteratorAggre
 	 * #pw-group-manipulation
 	 *
 	 * @param array $a Array of Inputfield definitions
-	 * @param InputfieldWrapper $inputfields Specify the wrapper you want them added to, or omit to use current.
+	 * @param InputfieldWrapper|null $inputfields Specify the wrapper you want them added to, or omit to use current.
 	 * @return $this
 	 *
 	 */
-	public function importArray(array $a, InputfieldWrapper $inputfields = null) {
+	public function importArray(array $a, ?InputfieldWrapper $inputfields = null) {
 		
 		$modules = $this->wire()->modules;
 		
