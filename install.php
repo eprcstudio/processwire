@@ -11,7 +11,7 @@
  * If that file exists, the installer will not run. So if you need to re-run this installer for any
  * reason, then you'll want to delete that file. This was implemented just in case someone doesn't delete the installer.
  * 
- * ProcessWire 3.x, Copyright 2024 by Ryan Cramer
+ * ProcessWire 3.x, Copyright 2025 by Ryan Cramer
  * https://processwire.com
  * 
  * @todo 3.0.190: provide option for command-line options to install
@@ -91,18 +91,19 @@ class Installer {
 	public function execute() {
 		
 		if(self::TEST_MODE) {
-			error_reporting(E_ALL | E_STRICT);
+			error_reporting(E_ALL);
 			ini_set('display_errors', 1);
 		}
 
 		// these two vars used by install-head.inc
 		$title = "ProcessWire " . PROCESSWIRE_INSTALL . " Installer";
 		$formAction = "./install.php";
-		
-		require("./wire/modules/AdminTheme/AdminThemeUikit/install-head.inc"); 
-
 		$step = $this->post('step');
 		
+		if($step === '5') require('./index.php');
+		
+		require("./wire/modules/AdminTheme/AdminThemeUikit/install-head.inc");
+
 		if($step === null) {
 			$this->welcome();
 		} else {
@@ -112,7 +113,7 @@ class Installer {
 				case 1: $this->compatibilityCheck(); break;
 				case 2: $this->dbConfig();  break;
 				case 4: $this->dbSaveConfig();  break;
-				case 5: require("./index.php");
+				case 5: 
 					/** @var ProcessWire $wire */
 					$wire->modules->refresh();
 					$this->adminAccountSave($wire);
@@ -187,7 +188,7 @@ class Installer {
 			if($dir->isDot() || !$dir->isDir()) continue; 
 			$name = $dir->getBasename();
 			$path = rtrim($dir->getPathname(), '/') . '/';
-			if(strpos($name, 'site-') !== 0) continue;
+			if(strpos($name, 'site-') !== 0 && $name !== 'site') continue;
 			$passed = true;
 			foreach($dirTests as $test) if(!is_dir($path . $test)) $passed = false;
 			foreach($fileTests as $test) if(!file_exists($path . $test)) $passed = false; 
@@ -222,11 +223,7 @@ class Installer {
 		
 		foreach($profiles as $name => $profile) {
 			$title = empty($profile['title']) ? ucfirst($profile['name']) : $profile['title'];
-			$options .= "<option value='$name'";
-			if($name === SELF::DEFAULT_PROFILE) {
-				$options .= " selected";
-			}
-			$options .= ">$title</option>"; 
+			$options .= "<option value='$name'>$title</option>"; 
 			$out .= "<div class='profile-preview' id='$name' style='display: none;'>";
 			if(!empty($profile['summary'])) $out .= "<p>$profile[summary]</p>";
 				else $out .= "<p class='detail'>No summary.</p>";
@@ -357,7 +354,7 @@ class Installer {
 
 		if(function_exists('apache_get_modules')) {
 			if(in_array('mod_rewrite', apache_get_modules())) $this->ok("Found Apache module: mod_rewrite"); 
-			else $this->err("Apache 'mod_rewrite' module does not appear to be installed and is required by ProcessWire."); 
+				else $this->err("Apache 'mod_rewrite' module does not appear to be installed and is required by ProcessWire."); 
 		} else {
 			// apache_get_modules doesn't work on a cgi installation.
 			// check for environment var set in htaccess file, as submitted by jmarjie. 
@@ -406,12 +403,12 @@ class Installer {
 				$this->warn("Consider making directory $d writable, at least during development."); 
 			}
 		}
-		
+	
 		if(file_exists("./site/config.php")) {
 			if(is_writable("./site/config.php")) {
 				$this->ok("/site/config.php is writable");
 			} else {
-				$this->err("/site/config.php must be writable. Please adjust the server permissions before continuing.");
+				$this->err("/site/config.php must be writable during installation. Please adjust the server permissions before continuing.");
 			}
 		} else {
 			$this->err("Site profile is missing a /site/config.php file.");
@@ -482,13 +479,13 @@ class Installer {
 		if(!isset($values['dbPort'])) $values['dbPort'] = ini_get("mysqli.default_port"); 
 		if(!isset($values['dbUser'])) $values['dbUser'] = ini_get("mysqli.default_user"); 
 		if(!isset($values['dbPass'])) $values['dbPass'] = ini_get("mysqli.default_pw");
-		if(!isset($values['dbEngine'])) $values['dbEngine'] = 'MyISAM';
+		if(!isset($values['dbEngine'])) $values['dbEngine'] = 'InnoDB';
 		if(!isset($values['dbSocket'])) $values['dbSocket'] = ini_get("mysqli.default_socket");
 		if(!isset($values['dbCon'])) $values['dbCon'] = 'Hostname';
 
 		if(!$values['dbHost']) $values['dbHost'] = 'localhost';
 		if(!$values['dbPort']) $values['dbPort'] = 3306;
-		if(empty($values['dbCharset'])) $values['dbCharset'] = 'utf8';
+		if(empty($values['dbCharset'])) $values['dbCharset'] = 'utf8mb4';
 		if($values['dbCharset'] != 'utf8mb4') $values['dbCharset'] = 'utf8';
 		if($values['dbEngine'] != 'InnoDB') $values['dbEngine'] = 'MyISAM';
 
@@ -496,7 +493,7 @@ class Installer {
 			if(strpos($key, 'chmod') === 0) {
 				$values[$key] = (int) $value;
 			} else if($key != 'httpHosts') {
-				$values[$key] = htmlspecialchars($value, ENT_QUOTES, 'utf-8'); 
+				$values[$key] = htmlspecialchars($value, ENT_QUOTES, 'UTF-8'); 
 			}
 		}
 		
@@ -509,11 +506,10 @@ class Installer {
 		$this->input('dbHost', 'DB Host', $values['dbHost']);
 		$this->input('dbPort', 'DB Port', $values['dbPort']);
 		$this->input('dbSocket', 'DB Socket', $values['dbSocket'], array('width' => 300));
-	
-		$this->select('dbCharset', 'DB Charset', $values['dbCharset'], array('utf8', 'utf8mb4'));
-		$this->select('dbEngine', 'DB Engine', $values['dbEngine'], array('MyISAM', 'InnoDB'));
+		$this->select('dbCharset', 'DB Charset', $values['dbCharset'], array('utf8mb4', 'utf8'));
+		$this->select('dbEngine', 'DB Engine', $values['dbEngine'], array('InnoDB', 'MyISAM'));
 		$this->clear();
-
+	
 		// automatic required states for host, port and socket
 		echo "
 			<script>
@@ -536,7 +532,6 @@ class Installer {
 		";
 	
 		$this->p(
-			"The DB Charset option “utf8mb4” may not be compatible with all 3rd party modules.<br />" . 
 			"The DB Engine option “InnoDB” requires MySQL 5.6.4 or newer.", 
 			array('class' => 'detail', 'style' => 'margin-top:0')
 		);
@@ -565,9 +560,9 @@ class Installer {
 		$defaults['httpHosts'] = strtolower(filter_var($_SERVER['HTTP_HOST'], FILTER_SANITIZE_URL));
 
 		if(strpos($defaults['httpHosts'], 'www.') === 0) {
-			$defaults['httpHosts'] = substr($defaults['httpHosts'], 4) . "\n$defaults[httpHosts]"; 
+			$defaults['httpHosts'] .= "\n" . substr($defaults['httpHosts'], 4); 
 		} else if(substr_count($defaults['httpHosts'], '.') == 1) {
-			$defaults['httpHosts'] .= "\nwww.$defaults[httpHosts]";
+			$defaults['httpHosts'] .= "\n" . "www.$defaults[httpHosts]";
 		}
 		if($_SERVER['SERVER_NAME'] && $_SERVER['SERVER_NAME'] != $_SERVER['HTTP_HOST']) {
 			$defaults['httpHosts'] .= "\n" . $_SERVER['SERVER_NAME']; 
@@ -751,7 +746,7 @@ class Installer {
 		// $values['debugMode'] = $this->post('debugMode', 'int');
 
 		// db configuration
-		$fields = array('dbUser', 'dbName', 'dbPass', 'dbHost', 'dbPort', 'dbSocket','dbEngine', 'dbCharset', 'dbCon');
+		$fields = array('dbUser', 'dbName', 'dbPass', 'dbHost', 'dbPort', 'dbSocket', 'dbEngine', 'dbCharset', 'dbCon');
 		
 		foreach($fields as $field) {
 			$value = $this->post($field, 'string');
@@ -766,17 +761,17 @@ class Installer {
 
 		if(empty($values['dbUser']) || empty($values['dbName'])) {
 			$this->alertErr("Missing database user and/or name");
-
+			
 		} else if($values['dbCon'] === 'Socket' && empty($values['dbSocket'])) {
 			$this->alertErr("Missing database socket");
-
+			
 		} else if($values['dbCon'] === 'Hostname' && (empty($values['dbHost']) || empty($values['dbPort']))) {
 			$this->alertErr("Missing database host and/or port");
 			
 		} else {
 	
 			error_reporting(0); 
-			
+		
 			if($values['dbCon'] === 'Socket') {
 				$dsn = "mysql:unix_socket=$values[dbSocket];dbname=$values[dbName]";
 			} else {
@@ -1182,27 +1177,28 @@ class Installer {
 	 */
 	protected function profileImportSQL($database, $file1, $file2, array $options = array()) {
 		$defaults = array(
-			'dbEngine' => 'MyISAM',
-			'dbCharset' => 'utf8', 
+			'dbEngine' => 'InnoDB',
+			'dbCharset' => 'utf8mb4', 
 		);
 		$options = array_merge($defaults, $options); 
 		if(self::TEST_MODE) return;
 		$restoreOptions = array();
 		$replace = array();
-		if($options['dbEngine'] != 'MyISAM') {
-			$replace['ENGINE=MyISAM'] = "ENGINE=$options[dbEngine]";
-		}
-		if($options['dbCharset'] != 'utf8') {
-			$replace['CHARSET=utf8'] = "CHARSET=$options[dbCharset]";
-			if(strtolower($options['dbCharset']) === 'utf8mb4') {
-				if(strtolower($options['dbEngine']) === 'innodb') {
-					$replace['(255)'] = '(191)'; 
-					$replace['(250)'] = '(191)'; 
-				} else {
-					$replace['(255)'] = '(250)'; // max ley length in utf8mb4 is 1000 (250 * 4)
-				}
+		$replace['ENGINE=InnoDB'] = "ENGINE=$options[dbEngine]";
+		$replace['ENGINE=MyISAM'] = "ENGINE=$options[dbEngine]";
+		$replace['CHARSET=utf8mb4;'] = "CHARSET=$options[dbCharset];";
+		$replace['CHARSET=utf8;'] = "CHARSET=$options[dbCharset];";
+		$replace['CHARSET=utf8 COLLATE='] = "CHARSET=$options[dbCharset] COLLATE=";
+		
+		if(strtolower($options['dbCharset']) === 'utf8mb4') {
+			if(strtolower($options['dbEngine']) === 'innodb') {
+				$replace['(255)'] = '(191)'; 
+				$replace['(250)'] = '(191)'; 
+			} else {
+				$replace['(255)'] = '(250)'; // max ley length in utf8mb4 is 1000 (250 * 4)
 			}
 		}
+		
 		if(count($replace)) $restoreOptions['findReplaceCreateTable'] = $replace; 
 		require("./wire/core/WireDatabaseBackup.php"); 
 		$backup = new WireDatabaseBackup(); 
@@ -1306,6 +1302,7 @@ class Installer {
 		);
 
 		foreach($this->findProfiles() as $name => $profile) {
+			if($name === 'site') continue;
 			$title = empty($profile['title']) ? $name : $profile['title'];
 			$items[$name] = array(
 				'label' => "Remove unused $title site profile (/$name/)", 
@@ -1489,15 +1486,6 @@ class Installer {
 			if($installer) {} // ignore
 			extract($fuel);
 			include($file);
-			$this->sectionStart("fa-plug Default modules");
-			if(empty($issues)) {
-				$this->alertOk("Modules (core and site) have all been installed");
-			} else {
-				$plural = count($issues) > 1;
-				$failedModules = "\"" . implode("\", \"", $issues) . "\"";
-				$this->alertWarn(sprintf('There was an issue with %1$s %2$s: %3$s. You may have not properly cloned the fork with the submodules. Download the %2$s and install %4$s manually', $plural ? "these" : "this", "module" . $plural ? "s" : "", $failedModules, $plural ? "them" : "it"));
-			}
-			$this->sectionStop();
 		}
 	}
 
@@ -2121,6 +2109,6 @@ class Installer {
 /****************************************************************************************************/
 
 if(!Installer::TEST_MODE && is_file("./site/assets/installed.php")) die("This installer has already run. Please delete it."); 
-error_reporting(E_ALL | E_STRICT); 
+error_reporting(E_ALL); 
 $installer = new Installer();
 $installer->execute();
