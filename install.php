@@ -1486,6 +1486,15 @@ class Installer {
 			if($installer) {} // ignore
 			extract($fuel);
 			include($file);
+			$this->sectionStart("fa-plug Default modules");
+			if(empty($issues)) {
+				$this->alertOk("Modules (core and site) have all been installed");
+			} else {
+				$plural = count($issues) > 1;
+				$failedModules = "\"" . implode("\", \"", $issues) . "\"";
+				$this->alertWarn(sprintf('There was an issue with %1$s %2$s: %3$s. You may have not properly cloned the fork with the submodules. Download the %2$s and install %4$s manually', $plural ? "these" : "this", "module" . $plural ? "s" : "", $failedModules, $plural ? "them" : "it"));
+			}
+			$this->sectionStop();
 		}
 	}
 
