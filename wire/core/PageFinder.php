@@ -1836,7 +1836,12 @@ class PageFinder extends Wire {
 						if(in_array($operator, array('=', '!=', '<', '<=', '>', '>='))) {
 							// we only accommodate this optimization for single-value selectors...
 							if($this->whereEmptyValuePossible($field, $subfield, $selector, $query, $value, $whereFields)) {
-								if(count($valueArray) > 1 && $operator == '=') $whereFieldsType = 'OR';
+								if(count($valueArray) > 1) {
+									if($operator == '=') $whereFieldsType = 'OR';
+								} else {
+									$fieldCnt[$field->table]--;
+									if($fieldCnt[$field->table] < 1) unset($fieldCnt[$field->table]);
+								}
 								continue;
 							}
 						}

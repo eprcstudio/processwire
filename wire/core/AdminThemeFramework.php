@@ -196,7 +196,13 @@ abstract class AdminThemeFramework extends AdminTheme {
 		$headline = (string) $this->wire('processHeadline');
 		if(!strlen($headline)) $headline = $this->wire()->page->get('title|name');
 		if($headline !== 'en' && $this->wire()->languages) $headline = $this->_($headline);
-		return $this->sanitizer->entities1($headline);
+		$headline = $this->sanitizer->entities1($headline);
+		if(strpos($headline, '&lt;icon-') !== false && !$this->wire()->process instanceof WirePageEditor) {
+			if(preg_match('/&lt;icon-([-a-z0-9]+)&gt;/', $headline, $matches)) {
+				$headline = str_replace($matches[0], wireIconMarkup($matches[1]), $headline);
+			}
+		}
+		return $headline;
 	}
 
 	/**
@@ -543,7 +549,19 @@ abstract class AdminThemeFramework extends AdminTheme {
 	 *
 	 * This is hookable so that something else could add stuff to it.
 	 * See the method body for details on format used.
-	 *
+	 * 
+	 * Supported properties/attributes as of 3.0.248: 
+	 * 
+	 * - url (href)
+	 * - title (label text)
+	 * - target (html attr)
+	 * - icon (name of icon)
+	 * - permission (required permission)
+	 * - id (html attr)
+	 * - class (html attr)
+	 * - onclick (html attr)
+	 * - data-* (html attr)
+	 * 
 	 * @return array
 	 *
 	 */
@@ -599,6 +617,10 @@ abstract class AdminThemeFramework extends AdminTheme {
 			if(strpos($httpHost, 'www.') === 0) $httpHost = substr($httpHost, 4); // remove www
 			if(strpos($httpHost, ':')) $httpHost = preg_replace('/:\d+/', '', $httpHost); // remove port
 			$browserTitle .= " • $httpHost";
+		}
+		
+		if(strpos($browserTitle, '<icon-') !== false) {
+			$browserTitle = preg_replace('/<icon-[-a-z0-9]+>\s*/', '', $browserTitle);
 		}
 
 		return $this->sanitizer->entities1($browserTitle);
@@ -799,8 +821,7 @@ abstract class AdminThemeFramework extends AdminTheme {
 	 *
 	 */
 	public function renderExtraMarkup($for) {
-		static $extras = array();
-		if(empty($extras)) $extras = $this->getExtraMarkup();
+		$extras = $this->getExtraMarkup();
 		return isset($extras[$for]) ? $extras[$for] : '';
 	}
 	

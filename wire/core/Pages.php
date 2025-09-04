@@ -264,7 +264,7 @@ class Pages extends Wire {
 	 *  - `findOne` (bool): Apply optimizations for finding a single page (default=false).
 	 *  - `findAll` (bool): Find all pages with no exclusions, same as "include=all" option (default=false). 
 	 *  - `findIDs` (bool|int): 1 to get array of page IDs, true to return verbose array, 2 to return verbose array with all cols in 3.0.153+. (default=false).
-	 *  - `getTotal` (bool): Whether to set returning PageArray's "total" property (default=true, except when findOne=true).
+	 *  - `getTotal` (bool): Whether to set returning PageArray's "total" property (default=true) except when findOne=true.
 	 *  - `loadPages` (bool): Whether to populate the returned PageArray with found pages (default=true). 
 	 *	   The only reason why you'd want to change this to false would be if you only needed the count details from 
 	 *	   the PageArray: getTotal(), getStart(), getLimit, etc. This is intended as an optimization for $pages->count().
@@ -881,6 +881,8 @@ class Pages extends Wire {
 	 * // return value is array of saved field/property names
 	 * print_r($a); // outputs: array( 'title', 'body', 'summary' )
 	 * ~~~~~
+	 * 
+	 * #pw-group-manipulation
 	 *
 	 * @param Page $page Page to save
 	 * @param array|string|string[]|Field[] $fields Array of field names to save or CSV/space separated field names to save.
@@ -1426,6 +1428,7 @@ class Pages extends Wire {
 	 * - Assigns a 'sort' value'. 
 	 * 
 	 * #pw-internal
+	 * #pw-group-manipulation
 	 * 
 	 * @param Page $page
 	 *
@@ -1443,6 +1446,7 @@ class Pages extends Wire {
 	 * already have a name, unless the name is "untitled"
 	 * 
 	 * #pw-internal
+	 * #pw-group-manipulation
 	 * 
 	 * @param Page $page
 	 * @param array $options 
@@ -1946,6 +1950,11 @@ class Pages extends Wire {
 		$class = empty($options['pageClass']) ? 'Page' : $options['pageClass'];
 
 		unset($options['template'], $options['parent'], $options['pageClass']); 
+		
+		if($template && !$template instanceof Template) {
+			$template = $this->wire()->templates->get($template);
+			if(!$template instanceof Template) $template = null;
+		}
 	
 		if(strpos($class, "\\") === false) $class = wireClassName($class, true);
 		

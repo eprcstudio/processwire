@@ -465,7 +465,7 @@ abstract class DatabaseQuery extends WireData {
 		if(is_array($value)) {
 			$curValue = array_merge($curValue, $value);
 		} else {
-			$curValue[] = trim($value, ", ");
+			$curValue[] = trim("$value", ", ");
 		}
 		
 		$this->set($method, $curValue); 
@@ -745,15 +745,10 @@ abstract class DatabaseQuery extends WireData {
 		
 		if($exception && $options['throw']) {
 			if($this->wire()->config->allowExceptions) throw $exception; // throw original
-			$message = (string) $exception->getMessage();
-			$code = (int) $exception->getCode();
-			// note: re-throw below complains about wrong arguments if the above two 
-			// lines are called in the line below, so variables are intermediary
-			throw new WireDatabaseQueryException($message, $code, $exception);
+			WireException([ 'class' => 'WireDatabaseQueryException', 'previous' => $exception ]); 
 		}
 		
 		return $options['returnQuery'] ? $query : $result;
 	}
 
 }
-
