@@ -11,7 +11,7 @@
  * If that file exists, the installer will not run. So if you need to re-run this installer for any
  * reason, then you'll want to delete that file. This was implemented just in case someone doesn't delete the installer.
  * 
- * ProcessWire 3.x, Copyright 2025 by Ryan Cramer
+ * ProcessWire 3.x, Copyright 2026 by Ryan Cramer
  * https://processwire.com
  * 
  * @todo 3.0.190: provide option for command-line options to install
@@ -658,12 +658,12 @@ class Installer {
 		// $yesChecked = empty($noChecked) ? "checked='checked'" : "";
 		// $this->p(
 		// 	"<label>" . 
-		// 		"<input type='radio' class='uk-radio' name='debugMode' $yesChecked value='1'> <strong>Enabled</strong> " . 
-		// 		"<span class='uk-text-small uk-text-muted'>(recommended while sites are in development or while testing ProcessWire)</span>" . 
+		// 		"<input type='radio' class='uk-radio' name='debugMode' $yesChecked value='1'> <strong>ON:</strong> " . 
+		// 		"<span>Recommended while site is in development or while testing ProcessWire.</span>" . 
 		// 	"</label><br />" .
 		// 	"<label>" . 
-		// 		"<input type='radio' class='uk-radio' name='debugMode' $noChecked value='0'> <strong>Disabled</strong> " . 
-		// 		"<span class='uk-text-small uk-text-muted'>(recommended once a site goes live or becomes publicly accessible)</span>" . 
+		// 		"<input type='radio' class='uk-radio' name='debugMode' $noChecked value='0'> <strong>OFF:</strong> " . 
+		// 		"<span>Recommended once a site goes live or becomes publicly accessible.</span>" . 
 		// 	"</label> " 
 		// );
 		// $this->p(
@@ -671,7 +671,28 @@ class Installer {
 		// 	"<code>\$config->debug = true;</code> or <code>\$config->debug = false;</code>"
 		// );
 		// $this->sectionStop();
-		
+
+		$this->sectionStart('fa-smile-o Admin Appearance');
+		$themeName = isset($values['themeName']) ? $values['themeName'] : 'default';
+		$defaultChecked = $themeName === 'default' ? ' checked' : '';
+		$originalChecked = $themeName === 'original' ? ' checked' : '';
+		$this->p(
+			"<label>" .
+				"<input type='radio' class='uk-radio' name='themeName' $defaultChecked value='default'> <strong>Konkat Default:</strong> " .
+				"<span>Modern with light and dark modes, customizable main colors, made by Konkat Studio.</span>" .
+			"</label><br />" .
+			"<label>" .
+				"<input type='radio' class='uk-radio' name='themeName' $originalChecked value='original'> <strong>Core Original:</strong> " .
+				"<span>Classic ProcessWire with colors like this installer, widely used and very stable.</span>" .
+			"</label> "
+		);
+		$this->p(
+			"Not sure which to choose? Select either and you can always change it later. " . 
+			"After installation, login to the admin and go to <code>Modules &gt; Configure &gt; AdminThemeUikit</code> " . 
+			"and experiment with the different options there."
+		);
+		$this->sectionStop();
+
 		$this->btnContinue(array('value' => 4)); 
 		$this->p("Note: After you click the button above, be patient &hellip; it may take a minute.", "detail");
 	}
@@ -797,6 +818,11 @@ class Installer {
 				}
 			}
 		}
+
+		// Uikit admin theme name
+		$themeName = $this->post('themeName');
+		if($themeName !== 'default' && $themeName !== 'original') $themeName = 'default';
+		$values['themeName'] = $themeName;
 
 		if($this->numErrors || !$database) {
 			$this->dbConfig($values);
@@ -1025,6 +1051,7 @@ class Installer {
 			"\n\$config->chmodFile = \"0$values[chmodFile]\"; // permission for files created by ProcessWire " .
 			"\n\$config->timezone = \"$values[timezone]\";" .
 			"\n\$config->defaultAdminTheme = \"AdminThemeUikit\";" .
+			"\n\$config->AdminThemeUikit('themeName', '$values[themeName]');" .
 			"\n\$config->installed = " . time() . ";";
 
 		if(($fp = fopen("./site/config.php", "a")) && fwrite($fp, $cfg)) {
@@ -1361,7 +1388,15 @@ class Installer {
 
 		$input = $wire->input;
 		$sanitizer = $wire->sanitizer;
-		$adminTheme = $wire->modules->getInstall('AdminThemeUikit');
+		$modules = $wire->modules;
+
+		$config = $wire->config;
+		$adminTheme = $modules->getInstall('AdminThemeUikit');
+
+		if($config->defaultAdminTheme === 'AdminThemeUikit' && $modules->isInstalled('AdminThemeDefault')) {
+			// default admin theme module does not need to be installed by default anymore
+			$modules->uninstall('AdminThemeDefault');
+		}
 
 		if(!$input->post('username') || !$input->post('userpass')) $this->err("Missing account information"); 
 		if($input->post('userpass') !== $input->post('userpass_confirm')) $this->err("Passwords do not match");
