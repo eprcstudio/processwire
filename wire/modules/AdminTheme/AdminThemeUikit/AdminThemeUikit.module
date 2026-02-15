@@ -24,6 +24,7 @@
  * @property int $cssVersion Current version number of core CSS/LESS files
  * @property string $themeName One of blank (original) or name of theme style
  * @property array $themeInfos where theme style files are located
+ * @property int $askTheme When non-zero, ask superuser if they want to try an updated theme. 
  *
  * Settings specific to default theme 
  * ----------------------------------
@@ -119,8 +120,9 @@ class AdminThemeUikit extends AdminThemeFramework implements Module, Configurabl
 		$this->set('ukGrid', false); 
 		$this->set('configPhpHash', '');
 		$this->set('cssVersion', 0);
-		$this->set('themeName', 'default');
+		$this->set('themeName', '');
 		$this->set('themeInfos', array('z' => 'z')); // z=sleeping
+		$this->set('askTheme', 1);
 		$this->setClasses(array(
 			'input' => 'uk-input',
 			'input-small' => 'uk-input uk-form-small',
@@ -150,6 +152,12 @@ class AdminThemeUikit extends AdminThemeFramework implements Module, Configurabl
 	public function wired() {
 		parent::wired();
 		$this->addHookAfter('InputfieldSelector::ajaxReady', $this, 'hookInputfieldSelectorAjax');
+		$settings = $this->wire()->config->AdminThemeUikit; 
+		if(is_array($settings) && !empty($settings['themeName'])) {
+			// used by new installations that selected theme during installation
+			$this->setQuietly('themeName', $settings['themeName']);
+			$this->setQuietly('askTheme', 0);
+		}
 	}
 	
 	/**
@@ -168,14 +176,16 @@ class AdminThemeUikit extends AdminThemeFramework implements Module, Configurabl
 		$session = $this->wire()->session;
 		$config = $this->wire()->config;
 		$input = $this->wire()->input;
+		$user = $this->wire()->user;
 
 		$themeName = $this->themeName;
-
-		if($themeName) {
+		
+		if($themeName && $themeName != 'auto') {
 			$sidenav = false;
 			$this->layout = '';
 		} else {
 			$sidenav = strpos($this->layout, 'sidenav') === 0;
+			$themeName = '';
 		}
 
 		// disable sidebar layout if SystemNotifications is active
@@ -213,8 +223,7 @@ class AdminThemeUikit extends AdminThemeFramework implements Module, Configurabl
 			$this->addBodyClass('AdminThemeUikit');
 		}
 		
-		$themeName = $this->themeName;
-		if(empty($themeName)) $themeName = 'Original';
+		if(empty($themeName)) $themeName = 'original';
 		$this->addBodyClass('AdminThemeUikit' . ucfirst($themeName)); 
 		
 		$session->removeFor('Page', 'appendEditUrl');
@@ -242,31 +251,23 @@ class AdminThemeUikit extends AdminThemeFramework implements Module, Configurabl
 		// add cache clearing hooks
 		$pages->addHookAfter('saved', $this, 'hookClearCaches');
 		$modules->addHookAfter('refresh', $this, 'hookClearCaches');
-		
-		if($themeName) {
+	
+		if($themeName && $themeName != 'original') {
 			$themeInfo = $this->getThemeInfo($themeName);
-			$user = $this->wire()->user;
 			if($themeInfo && $themeInfo['path']) {
 				$adminTheme = $this;
 				include($themeInfo['path'] . 'init.php');
 			}
 		}
+
+		if($this->askTheme && $themeName != 'default') { 
+			if($user->isSuperuser() && !$input->requestMethod('post')) {
+				$adminTheme = $this;
+				include_once(__DIR__ . '/themes/default/ask.php');
+			}
+		}
 	}
 	
-	/**
-	 * Render an extra markup region
-	 *
-	 * @param string $for
-	 * @return mixed|string
-	 *
-	 */
-	public function renderExtraMarkup($for) {
-		$out = parent::renderExtraMarkup($for);
-		if($for === 'notices') {
-		}
-		return $out;
-	}
-
 	/**
 	 * Test all notice types
 	 * 
@@ -303,7 +304,7 @@ class AdminThemeUikit extends AdminThemeFramework implements Module, Configurabl
 		$cssUrl = '';
 		$s = 'script';
 		
-		if($this->themeName) {
+		if($this->themeName && $this->themeName != 'original') {
 			$themeInfo = $this->getThemeInfo($this->themeName);
 			if($themeInfo && $themeInfo['path']) {
 				$cssUrl = $themeInfo['url'] . 'admin.css';
@@ -1163,7 +1164,7 @@ class AdminThemeUikit extends AdminThemeFramework implements Module, Configurabl
 		$svg = false;
 		$svgName = 'logo.svg';
 		$themeName = $this->themeName;
-		$themeInfo = $themeName ? $this->getThemeInfo() : [];
+		$themeInfo = $themeName && $themeName != 'original' ? $this->getThemeInfo() : [];
 		$themeLogo = empty($themeInfo) ? '' : $themeInfo['path'] . $svgName;
 
 		if($themeLogo && (empty($logoURL) || $options['getNative']) && file_exists($themeLogo)) {
@@ -1325,6 +1326,7 @@ class AdminThemeUikit extends AdminThemeFramework implements Module, Configurabl
 	public function getThemeInfo($themeName = '') {
 		
 		if(empty($themeName)) $themeName = $this->themeName;
+		if(empty($themeName) || $themeName === 'original') return [];
 		
 		$themeInfos = $this->themeInfos;
 		
@@ -1356,6 +1358,8 @@ class AdminThemeUikit extends AdminThemeFramework implements Module, Configurabl
 				unset($themeInfos['z']);
 				$this->themeInfos = $themeInfos;
 				$session->setFor($this, 'themeInfos', $themeInfos);
+			} else {
+				$this->themeInfos = $themeInfos;
 			}
 		}
 		

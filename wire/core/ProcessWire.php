@@ -17,7 +17,7 @@ require_once(__DIR__ . '/boot.php');
  * ~~~~~
  * #pw-body
  * 
- * ProcessWire 3.x, Copyright 2025 by Ryan Cramer
+ * ProcessWire 3.x, Copyright 2026 by Ryan Cramer
  * https://processwire.com
  *
  * Default API vars (A-Z) 
@@ -80,7 +80,7 @@ class ProcessWire extends Wire {
 	 * Reversion revision number
 	 * 
 	 */
-	const versionRevision = 251;
+	const versionRevision = 256;
 
 	/**
 	 * Version suffix string (when applicable)
@@ -812,6 +812,7 @@ class ProcessWire extends Wire {
 		$session = $this->fuel->get('session'); /** @var Session $session */
 		$cache = $this->fuel->get('cache'); /** @var WireCache $cache */
 		$profiler = $this->fuel->get('profiler'); /** @var WireProfilerInterface $profiler */
+		$log = $this->fuel->get('log'); /** @var WireLog $log */
 		$exited = !empty($data['exited']);
 		
 		if($data) {} // data for hooks
@@ -822,6 +823,7 @@ class ProcessWire extends Wire {
 		if($session && !$exited) $session->maintenance();
 		if($cache && !$exited) $cache->maintenance();
 		if($profiler) $profiler->maintenance();
+		if($log) $log->finished();
 
 		if($config && !$exited) {
 			if($config->templateCompile) {
@@ -1242,6 +1244,7 @@ class ProcessWire extends Wire {
 			'templates' => "$siteDir/templates/",
 			'fieldTemplates' => "$siteDir/templates/fields/",
 			'adminTemplates' => "$wireDir/$adminTplDir/",
+			'markupRegions' => "$assetsDir/markup-regions/",
 		), true);
 		
 		$cfg['paths'] = clone $cfg['urls'];
